@@ -1,0 +1,88 @@
+# THIS FILE IS EXCLUSIVELY MAINTAINED IN THE NAMESPACE ROOT PACKAGE. CHANGES HAVE TO BE DONE THERE.
+# All changes will be deployed automatically to all the portions of this namespace package.
+image: python:3.6
+
+
+
+
+
+before_script:
+  - python --version
+  - pip install --upgrade setuptools
+  - pip install --upgrade -r requirements.txt -r test_requirements.txt
+
+
+pytest:
+  script:
+    - python -m pytest --cov-report html --cov=ae tests/
+    - coverage report | tee coverage.txt
+    - coverage-badge -o coverage.svg -f
+  artifacts:
+    paths:
+      - htmlcov/
+      - coverage.txt
+      - coverage.svg
+
+
+flake8:
+  script:
+    - flake8 -v --max-line-length=120 ae
+
+mypy:
+  script:
+    - mkdir -p ./mypy_report
+    - python -m mypy -v --namespace-packages --show-error-codes --show-error-context --show-column-numbers --pretty
+      --lineprecision-report mypy_report ae
+    - anybadge --label=MyPy --value=passed --file=mypy_report/mypy.svg -o
+    - ls -l -R
+  artifacts:
+    paths:
+      - mypy_report/
+
+pylint:
+  script:
+    - mkdir -p ./pylint
+    - pylint --output-format=text --max-line-length=120 ae | tee ./pylint/pylint.log || pylint-exit $?
+    - PYLINT_SCORE=$(sed -n 's/^Your code has been rated at \([-0-9.]*\)\/.*/\1/p' ./pylint/pylint.log)
+    - anybadge --label=Pylint --file=pylint/pylint.svg --value=$PYLINT_SCORE 2=red 4=orange 8=yellow 10=green
+    - echo "Pylint score is $PYLINT_SCORE"
+  artifacts:
+    paths:
+      - pylint/
+
+
+deploy_staging:
+  stage: deploy
+  variables:
+    TWINE_USERNAME: $PYPI_USERNAME
+    TWINE_PASSWORD: $PYPI_PASSWORD
+  before_script:
+     - pip install --upgrade twine wheel de_core
+     - python setup.py sdist bdist_wheel
+  script:
+    - twine upload --verbose dist/*
+  only:
+    - master
+
+
+pages:
+  stage: deploy
+  dependencies:
+    - pytest
+    - mypy
+    - pylint
+  script:
+    - mkdir -p public/coverage
+    - mv -f -v htmlcov/* public/coverage
+    - mv -f -v coverage.txt public/
+    - mv -f -v coverage.svg public/
+    - mv -f -v mypy_report/lineprecision.txt public/
+    - mv -f -v mypy_report/mypy.svg public/
+    - mv -f -v pylint/pylint.svg public/
+    - mv -f -v pylint/pylint.log public/
+    - ls -l -R
+  artifacts:
+    paths:
+      - public
+  only:
+    - master

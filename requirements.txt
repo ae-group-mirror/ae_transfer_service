@@ -1,0 +1,7 @@
+# dependencies of the transfer_service portion
+ae_base
+ae_deep
+ae_paths
+ae_files
+ae_console
+
