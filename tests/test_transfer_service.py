@@ -25,6 +25,7 @@ from ae.transfer_service import (
 def threaded_server(restore_app_env):
     """ yielding an instantiated and started server app. """
     app = service_factory()
+    app.run_app()
     app.start_server(threaded=True)
 
     yield app
@@ -185,16 +186,16 @@ class TestTransferServiceApp:
         assert msg in called[0]
 
     def test_log_append(self, threaded_server):
-        # setattr(threaded_server, 'tst')
+        rt_id_part = "ijk"
         assert not threaded_server.reqs_and_logs
-        threaded_server.log("tst", "message")
+        threaded_server.log(rt_id_part, "message")
         assert len(threaded_server.reqs_and_logs) == 1
-        req = threaded_server.reqs_and_logs[0]
-        assert req['method_name'] == "tst_log"
+        req = threaded_server.reqs_and_logs[-1]
+        assert req['method_name'] == rt_id_part + "_log"
         assert req['message'] == "message"
         assert req['completed'] is True
         assert req['log_time']
-        assert "tst" in req['rt_id']
+        assert rt_id_part in req['rt_id']
 
     def test_pending_requests(self, threaded_server):
         rt_id = "rt_id"

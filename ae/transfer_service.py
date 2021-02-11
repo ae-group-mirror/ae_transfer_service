@@ -127,7 +127,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.1.4'
+__version__ = '0.1.5'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) for to connect and request a server process
@@ -659,16 +659,15 @@ class TransferServiceApp(ConsoleApp):
 
         self.log('verbose', f"{pre}: (ip,port)={server_address}/{self.server_instance.server_address}")
 
-        ctr = threading.current_thread()
+        tct = threading.current_thread()
         if threaded:
             # Start a thread with the server -- that thread will then start one more thread for each request
-            self.server_thread = threading.Thread(name="TransferService", target=self.server_instance.serve_forever)
-            # self.server_thread.daemon = True    # exit the server thread when the main thread terminates
+            self.server_thread = threading.Thread(name="TransferServiceTrd", target=self.server_instance.serve_forever)
             self.server_thread.start()
-            self.log('verbose', f"{pre}: server started from thread={ctr} in separate thread={self.server_thread.name}")
+            self.log('verbose', f"{pre}: server started from thread={tct.name} in thread={self.server_thread.name}")
         else:
-            self.log('verbose', f"{pre}: starting server loop - using current thread={ctr.name}")
-            self.server_thread = ctr
+            self.log('verbose', f"{pre}: starting server loop - using current thread={tct.name}")
+            self.server_thread = tct
             self.server_instance.serve_forever()
 
         return bool(self.server_instance and self.server_thread)
