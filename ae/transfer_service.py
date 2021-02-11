@@ -11,19 +11,28 @@ devices.
 If a file transfers gets interrupted it can be recovered later and without the need to resend the already transferred
 file content.
 
-Standard file paths - like e.g. the Documents or Downloads folders - are getting automatically adopted to the different
+Standard file paths - like e.g. the Documents or Downloads folders - are getting automatically adopted to the specific
 path structures of each involved device and operating system.
 
-This transfer service module can run either standalone as a separate process or attached and embedded in a controlling
-application.
+
+transfer service life cycle
+---------------------------
+
+The transfer service can be invoked in different ways: standalone as a separate process or attached and embedded into
+a controlling application.
 
 
 run transfer service in standalone mode
----------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Execute this module for to run the transfer services as a separate standalone process via::
 
-    python transfer_service.py
+    python transfer_service.py [--bind=...] [--port=...]
+
+You can specify the two command line options (see also :func:`service_factory`):
+
+* 'bind' to restrict the incoming connections to an ip address/range (overwriting the default :data:`SERVER_BIND`).
+* 'port' to specify the socket port (overwriting the default port :data:`SERVER_PORT`).
 
 After that the transfer service will be able to receive files send from another process or device.
 
@@ -32,7 +41,7 @@ After that the transfer service will be able to receive files send from another 
 
 
 run transfer service attached to any app
-----------------------------------------
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 Alternatively you can run the transfer service server in a separate thread within respectively attached to your
 application::
@@ -42,10 +51,23 @@ application::
     transfer_service_app = service_factory()
     transfer_service_app.start_server(threaded=True)
 
-For a clean shutdown of the transfer service server store the app instance of the transfer service app
-(`transfer_service_app` in the last example) and call its :meth:`~ae.console.ConsoleApp.shutdown` method::
+
+pause or stop transfer service
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For to manually pause the transfer service, store the app instance of the transfer service app
+(`transfer_service_app` in the example above) and call its :meth:`~TransferServiceApp.stop_server` method::
+
+    transfer_service_app.stop_server()
+
+For to fully stop the transfer service and terminate the transfer service app call instead its
+:meth:`~TransferServiceApp.shutdown` method::
 
     transfer_service_app.shutdown()
+
+.. hint::
+    The :meth:`~ae.core.AppBase.shutdown` method of the base app instance (:class:`~ae.core.AppBase`) automatically
+    ensures a clean shutdown of the transfer service server on app quit/exit.
 
 
 send file to another transfer service server
@@ -105,7 +127,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.1.2'
+__version__ = '0.1.3'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) for to connect and request a server process
@@ -132,6 +154,8 @@ TransferKwargs = Dict[str, Any]     #: command/action format of requests and res
 
 
 requests_lock = threading.Lock()    #: locking requests TransferKwargs in :attr:`TransferServiceApp.reqs_and_logs`
+
+server_app: Optional['TransferServiceApp'] = None     #: transfer service server app
 
 
 def clean_log_str(log_str: Union[str, bytes]) -> str:
@@ -164,7 +188,7 @@ def connect_and_request(sock: socket.socket, request_kwargs: TransferKwargs,
     """
     if 'local_ip' not in request_kwargs:
         request_kwargs['local_ip'] = os_local_ip()
-    server_app.vpo(f"transfer_service.connect_and_request(): timeout={timeout} req={request_kwargs}")
+    server_app and server_app.vpo(f"transfer_service.connect_and_request(): timeout={timeout} req={request_kwargs}")
 
     try:
         sock.settimeout(timeout)
@@ -184,18 +208,18 @@ def recv_bytes(sock: socket.socket) -> bytes:
     :return:                    received bytes.
     """
     pre = "transfer_service.recv_bytes()"
-    server_app.vpo(f"{pre}: called with sock={sock} ... waiting for receive")
+    server_app and server_app.vpo(f"{pre}: called with sock={sock} ... waiting for receive")
     buf = b""
     while True:
         chunk = sock.recv(SOCKET_BUF_LEN)
         # doubles \\: server_app.log('verbose', f"{pre}: received chunk '{chunk}' from socket {sock}")
-        server_app.vpo(f"{pre}: received {len(chunk)} bytes chunk=({clean_log_str(chunk)}); sock={sock}")
+        server_app and server_app.vpo(f"{pre}: received {len(chunk)} bytes chunk=({clean_log_str(chunk)}); sock={sock}")
         buf += chunk
         if buf[-1:] == TRANSFER_KWARGS_LINE_END_BYTE:
-            server_app.vpo(f"{pre}: received end-of-line-char from socket {sock}")
+            server_app and server_app.vpo(f"{pre}: received end-of-line-char from socket {sock}")
             break
-        if not chunk:
-            server_app.vpo(f"{pre}: received empty chunk from socket {sock}")
+        if not chunk:   # pragma: no cover
+            server_app and server_app.vpo(f"{pre}: received empty chunk from socket {sock}")
             buf = bytes(transfer_kwargs_literal(dict(error=f"{pre}: empty chunk error")), **ENCODING_KWARGS)
             break
     return buf
@@ -321,9 +345,8 @@ class TransferServiceApp(ConsoleApp):
 
         response_kwargs = request_kwargs.copy()
         requests_lock.acquire()
-        for idx, req in enumerate(self.reqs_and_logs):
+        for req in self.reqs_and_logs:
             if req['rt_id'] == rt_id_to_cancel:
-                req = self.reqs_and_logs[idx]
                 req['error'] = msg + " cancelled"
                 request_kwargs['completed'] = True
                 break
@@ -424,7 +447,7 @@ class TransferServiceApp(ConsoleApp):
             file_folder = PATH_PLACEHOLDERS['downloads']
         recv_file = os.path.join(file_folder, file_name)
         if request_kwargs.get('series_file'):
-            recv_file = series_file_name(recv_file)
+            recv_file = request_kwargs['series_file_name'] = series_file_name(recv_file)
         file_length = request_kwargs['total_bytes']
 
         pre = "TransferServiceApp.recv_file()"
@@ -460,7 +483,7 @@ class TransferServiceApp(ConsoleApp):
             :return:            error message string if error (from other thread) detected, else empty string.
             """
             self.vpo(f"{pre}._progress(): copy bytes progress kwargs={kwargs}")
-            if 'error' in request_kwargs:
+            if 'error' in request_kwargs:   # pragma: no cover
                 return f"{pre}._progress(): error in request kwargs={request_kwargs}"   # cancel transfer
             transfer_kwargs_update(request_kwargs, response_kwargs, **kwargs)
             return ""
@@ -507,7 +530,7 @@ class TransferServiceApp(ConsoleApp):
             try:
                 if method_name != 'pending_requests':
                     requests_lock.acquire()
-                    self.reqs_and_logs.append(request_kwargs)                   # removed in pending_requests()
+                    self.reqs_and_logs.append(request_kwargs)               # removed in pending_requests()
                     requests_lock.release()
 
                 response_kwargs = getattr(self, method_name)(request_kwargs, handler)
@@ -531,10 +554,6 @@ class TransferServiceApp(ConsoleApp):
                 if not response_kwargs:
                     response_kwargs = request_kwargs.copy()
                 transfer_kwargs_error(response_kwargs, f"{pre} exception '{ex}' req={request_kwargs}")
-
-            finally:
-                if requests_lock.locked():
-                    requests_lock.release()
 
         return transfer_kwargs_literal(response_kwargs)
 
@@ -565,7 +584,7 @@ class TransferServiceApp(ConsoleApp):
                            server_address=(request_kwargs['remote_ip'], SERVER_PORT),
                            rt_id=self.id_of_task('recv', 'file', file_path + '@' + request_kwargs['local_ip']))
         if recv_kwargs['remote_ip'] == recv_kwargs['local_ip']:
-            recv_kwargs['series_file'] = True   # create duplicate for debugging
+            recv_kwargs['series_file'] = True   # create duplicate for debugging and testing
         with socket.socket() as sock:           # use socket default args: socket.AF_INET, socket.SOCK_STREAM
             response_kwargs = connect_and_request(sock, recv_kwargs)
             self.log('verbose', f"{pre} received response to {recv_kwargs['method_name']} method: {response_kwargs}")
@@ -575,7 +594,7 @@ class TransferServiceApp(ConsoleApp):
             requests_lock.acquire()
             offset = request_kwargs['transferred_bytes'] = response_kwargs['transferred_bytes']
             requests_lock.release()
-            if offset:
+            if offset:      # pragma: no cover
                 self.log('debug', f"{pre} recovering interrupted transfer at offset {offset}")
                 content = content[offset:]
 
@@ -612,39 +631,26 @@ class TransferServiceApp(ConsoleApp):
         return response_kwargs
 
     def shutdown(self, exit_code: Optional[int] = 0, timeout: Optional[float] = None):
-        """ overwritten for to shutdown server instance/thread. """
-        pre = "TransferServiceApp.shutdown"
+        """ overwritten for to stop a running transfer service server/threads on shutdown of this app instance.
 
-        if requests_lock.locked():
-            self.log('print', f"{pre}: releasing requests lock")
-            requests_lock.release()
-
-        if self.server_instance and self.server_thread:
-            if threading.current_thread() == self.server_thread:
-                thread = threading.Thread(name="StopTransferService", target=self.server_instance.shutdown)
-                thread.start()
-                thread.join(timeout=SHUTDOWN_TIMEOUT)
-                if thread.is_alive():
-                    self.log('print', f"{pre}: server shutdown thread join timed out")
-            else:
-                self.server_instance.shutdown()
-                self.server_thread.join(timeout=SHUTDOWN_TIMEOUT)
-                if self.server_thread.is_alive():
-                    self.log('print', f"{pre}: server thread join timed out")
-        self.server_instance = self.server_thread = None
-
-        self.reqs_and_logs = list()
-
+        :param exit_code:   set application OS exit code - see :meth:`~ae.core.AppBase.shutdown`.
+        :param timeout:     timeout float value in seconds - see :meth:`~ae.core.AppBase.shutdown`.
+        """
+        self.stop_server()
         super().shutdown(exit_code=exit_code, timeout=timeout)
 
     def start_server(self, threaded: bool = False) -> bool:
-        """ start server and run until main app :meth:`~.shutdown`. """
+        """ start server and run until main app :meth:`~.stop_server`.
+
+        :param threaded:        optionally pass True to use separate thread for the server process.
+        :return:                True if server instance/thread got started else False.
+        """
         pre = "TransferServiceApp.start_server()"
         self.log('debug', f"{pre}: threaded={threaded}")
 
-        if requests_lock.locked():
-            self.log('print', f"{pre}: releasing requests lock")
+        if requests_lock.locked():      # pragma: no cover
             requests_lock.release()     # reset from crashed request
+            self.log('print', f"{pre}: releasing requests lock")
         self.reqs_and_logs = list()
 
         server_address = (self.get_option('bind'), self.get_option('port'))
@@ -653,21 +659,46 @@ class TransferServiceApp(ConsoleApp):
 
         self.log('verbose', f"{pre}: (ip,port)={server_address}/{self.server_instance.server_address}")
 
+        ctr = threading.current_thread()
         if threaded:
             # Start a thread with the server -- that thread will then start one more thread for each request
             self.server_thread = threading.Thread(name="TransferService", target=self.server_instance.serve_forever)
             # self.server_thread.daemon = True    # exit the server thread when the main thread terminates
             self.server_thread.start()
-            self.log('verbose', f"{pre}: started server loop - running in separate thread={self.server_thread.name}")
+            self.log('verbose', f"{pre}: server started from thread={ctr} in separate thread={self.server_thread.name}")
         else:
-            self.server_thread = threading.current_thread()
-            self.log('verbose', f"{pre}: starting server loop - blocking this main thread={self.server_thread.name}")
+            self.log('verbose', f"{pre}: starting server loop - using current thread={ctr.name}")
+            self.server_thread = ctr
             self.server_instance.serve_forever()
 
         return bool(self.server_instance and self.server_thread)
 
+    def stop_server(self):
+        """ stop/pause transfer service server - callable also if not running to reset/prepare this app instance. """
+        pre = "TransferServiceApp.stop_server"
 
-if __name__ == '__main__':
+        if requests_lock.locked():      # pragma: no cover
+            requests_lock.release()
+            self.log('print', f"{pre}: releasing requests lock")
+
+        if self.server_instance and self.server_thread:
+            if threading.current_thread() == self.server_thread:    # pragma: no cover
+                thread = threading.Thread(name="StopTransferService", target=self.server_instance.shutdown)
+                thread.start()
+                thread.join(timeout=SHUTDOWN_TIMEOUT)
+                if thread.is_alive():
+                    self.log('print', f"{pre}: server shutdown thread join timed out")
+            else:
+                self.server_instance.shutdown()
+                self.server_thread.join(timeout=SHUTDOWN_TIMEOUT)
+                if self.server_thread.is_alive():   # pragma: no cover
+                    self.log('print', f"{pre}: server thread join timed out")
+        self.server_instance = self.server_thread = None
+
+        self.reqs_and_logs = list()
+
+
+if __name__ == '__main__':      # pragma: no cover
     # create app instance, parse command line args and start server
     server_app = service_factory()
     server_app.run_app()
