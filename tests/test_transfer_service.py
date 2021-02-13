@@ -61,7 +61,7 @@ class TestHelpers:
         assert 'local_ip' in res
         assert res['local_ip'] == os_local_ip()
         assert 'pending_requests' in res
-        assert res['pending_requests'] == list()
+        assert threaded_server.debug == bool(res['pending_requests'])
 
     def test_recv_bytes(self):
         with socket() as sock:
@@ -80,7 +80,7 @@ class TestHelpers:
             assert res
             res = transfer_kwargs_from_literal(res)
             assert 'pending_requests' in res
-            assert res['pending_requests'] == list()
+            assert threaded_server.debug == bool(res['pending_requests'])
 
     def test_service_factory(self, restore_app_env):
         app = service_factory()
@@ -135,13 +135,8 @@ class TestThreadedTCPRequestHandler:
         request = MagicMock()
         client_address = MagicMock()
         server = MagicMock()
-        req_handler = ThreadedTCPRequestHandler(request, client_address, server)
-        assert req_handler.request == request
-        assert req_handler.connection == request
-        assert req_handler.client_address == client_address
-        assert req_handler.server == server
-        assert req_handler.rfile
-        assert req_handler.wfile
+        with pytest.raises(AttributeError):
+            ThreadedTCPRequestHandler(request, client_address, server)
 
 
 class TestTransferServiceApp:
@@ -152,19 +147,21 @@ class TestTransferServiceApp:
         res = threaded_server.cancel_request(req, MagicMock())
         assert 'error' not in res
         assert threaded_server.reqs_and_logs
-        assert threaded_server.reqs_and_logs[0]['rt_id'] == rt_id
-        assert threaded_server.reqs_and_logs[0]['error']
+        idx = -2 if threaded_server.debug else -1
+        assert threaded_server.reqs_and_logs[idx]['rt_id'] == rt_id
+        assert threaded_server.reqs_and_logs[idx]['error']
         assert req['completed'] is True
 
     def test_cancel_request_error(self, threaded_server):
         rt_id = "rt_id"
         threaded_server.reqs_and_logs.append(dict(rt_id=rt_id))
-        req = dict(rt_id_to_cancel=rt_id + "to make it fail")
+        req = dict(rt_id_to_cancel=rt_id + " to make it fail")
         res = threaded_server.cancel_request(req, MagicMock())
         assert 'error' in res
         assert threaded_server.reqs_and_logs
-        assert threaded_server.reqs_and_logs[0]['rt_id'] == rt_id
-        assert 'error' not in threaded_server.reqs_and_logs[0]
+        idx = -2 if threaded_server.debug else -1
+        assert threaded_server.reqs_and_logs[idx]['rt_id'] == rt_id
+        assert 'error' not in threaded_server.reqs_and_logs[idx]
         assert 'completed' not in req
 
     def test_id_of_task(self, threaded_server):
@@ -187,9 +184,9 @@ class TestTransferServiceApp:
 
     def test_log_append(self, threaded_server):
         rt_id_part = "ijk"
-        assert not threaded_server.reqs_and_logs
+        assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
         threaded_server.log(rt_id_part, "message")
-        assert len(threaded_server.reqs_and_logs) == 1
+        assert len(threaded_server.reqs_and_logs) == 2 if threaded_server.debug else 1
         req = threaded_server.reqs_and_logs[-1]
         assert req['method_name'] == rt_id_part + "_log"
         assert req['message'] == "message"
@@ -206,7 +203,7 @@ class TestTransferServiceApp:
         assert 'error' not in res
         assert threaded_server.reqs_and_logs[0]['rt_id'] == rt_id
         assert threaded_server.reqs_and_logs[0] is rt_req
-        assert req['pending_requests'][0] == rt_req
+        assert req['pending_requests'][-1] == rt_req
 
     def test_pending_requests_with_error_removed(self, threaded_server):
         rt_id = "rt_id"
@@ -216,7 +213,7 @@ class TestTransferServiceApp:
         res = threaded_server.pending_requests(req, MagicMock())
         assert 'error' not in res
         assert not threaded_server.reqs_and_logs
-        assert res['pending_requests'][0] == rt_req
+        assert res['pending_requests'][-1] == rt_req
 
     def test_pending_requests_with_completed_removed(self, threaded_server):
         rt_id = "rt_id"
@@ -226,7 +223,7 @@ class TestTransferServiceApp:
         res = threaded_server.pending_requests(req, MagicMock())
         assert 'error' not in res
         assert not threaded_server.reqs_and_logs
-        assert res['pending_requests'][0] == rt_req
+        assert res['pending_requests'][-1] == rt_req
 
     def test_recv_file_not_found(self, threaded_server):
         req = dict(file_path="not_exists.tst", total_bytes=333)
@@ -319,8 +316,8 @@ class TestTransferServiceApp:
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' in res
-        assert threaded_server.reqs_and_logs[0]['method_name'] == 'patched_meth'
-        assert threaded_server.reqs_and_logs[0]['error'] == "req_error"
+        assert threaded_server.reqs_and_logs[-1]['method_name'] == 'patched_meth'
+        assert threaded_server.reqs_and_logs[-1]['error'] == "req_error"
 
     def test_response_to_request_err_in_res(self, threaded_server):
         req = dict(method_name='patched_meth')
@@ -328,8 +325,8 @@ class TestTransferServiceApp:
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' in res
-        assert threaded_server.reqs_and_logs[0]['method_name'] == 'patched_meth'
-        assert threaded_server.reqs_and_logs[0]['error'] == "res_error"
+        assert threaded_server.reqs_and_logs[-1]['method_name'] == 'patched_meth'
+        assert threaded_server.reqs_and_logs[-1]['error'] == "res_error"
         assert res['error'] == "res_error"
 
     def test_send_file(self, threaded_server):

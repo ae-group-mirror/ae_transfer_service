@@ -127,7 +127,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.1.5'
+__version__ = '0.1.6'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) for to connect and request a server process
@@ -212,7 +212,6 @@ def recv_bytes(sock: socket.socket) -> bytes:
     buf = b""
     while True:
         chunk = sock.recv(SOCKET_BUF_LEN)
-        # doubles \\: server_app.log('verbose', f"{pre}: received chunk '{chunk}' from socket {sock}")
         server_app and server_app.vpo(f"{pre}: received {len(chunk)} bytes chunk=({clean_log_str(chunk)}); sock={sock}")
         buf += chunk
         if buf[-1:] == TRANSFER_KWARGS_LINE_END_BYTE:
@@ -327,7 +326,7 @@ class ThreadedTCPRequestHandler(StreamRequestHandler):
 
 class TransferServiceApp(ConsoleApp):
     """ server service app class """
-    reqs_and_logs: List[TransferKwargs] = list()        #: list of transfer_kwargs of currently processed requests
+    reqs_and_logs: List[TransferKwargs]                 #: list of transfer_kwargs of currently processed requests
     server_instance: Optional[ThreadingTCPServer]       #: server class instance
     server_thread: Optional[threading.Thread]           #: server thread (main or separate thread)
 
@@ -418,7 +417,7 @@ class TransferServiceApp(ConsoleApp):
 
         return request_kwargs
 
-    # uncomment the following method for better debugging of threading issues
+    # uncomment the following method for verbose logging/debugging of threading issues
     # def po(self, *objects, **kwargs):
     #     """ overwritten to add thread name to console printouts. """
     #     if not self.active_log_stream:
@@ -578,12 +577,14 @@ class TransferServiceApp(ConsoleApp):
         self.log('debug', f"{pre} {count} bytes on behalf of {handler.client_address}; req={request_kwargs}")
 
         file_path = placeholder_path(request_kwargs['file_path'])
+        local_ip = request_kwargs['local_ip']
+        remote_ip = request_kwargs['remote_ip']
         recv_kwargs = dict(method_name='recv_file', file_path=file_path,
                            transferred_bytes=0, total_bytes=request_kwargs['total_bytes'],
-                           remote_ip=request_kwargs['remote_ip'], local_ip=request_kwargs['local_ip'],
-                           server_address=(request_kwargs['remote_ip'], SERVER_PORT),
-                           rt_id=self.id_of_task('recv', 'file', file_path + '@' + request_kwargs['local_ip']))
-        if recv_kwargs['remote_ip'] == recv_kwargs['local_ip']:
+                           remote_ip=remote_ip, local_ip=local_ip,
+                           server_address=(remote_ip, SERVER_PORT),
+                           rt_id=self.id_of_task('recv', 'file', file_path + '@' + local_ip))
+        if remote_ip == local_ip:
             recv_kwargs['series_file'] = True   # create duplicate for debugging and testing
         with socket.socket() as sock:           # use socket default args: socket.AF_INET, socket.SOCK_STREAM
             response_kwargs = connect_and_request(sock, recv_kwargs)
@@ -646,12 +647,14 @@ class TransferServiceApp(ConsoleApp):
         :return:                True if server instance/thread got started else False.
         """
         pre = "TransferServiceApp.start_server()"
-        self.log('debug', f"{pre}: threaded={threaded}")
+        self.reqs_and_logs = list()
+        self.server_instance = self.server_thread = None
 
         if requests_lock.locked():      # pragma: no cover
             requests_lock.release()     # reset from crashed request
-            self.log('print', f"{pre}: releasing requests lock")
-        self.reqs_and_logs = list()
+            self.log('print', f"{pre}: released requests lock")
+
+        self.log('debug', f"{pre}: threaded={threaded}")
 
         server_address = (self.get_option('bind'), self.get_option('port'))
         ThreadingTCPServer.allow_reuse_address = True   # patching class, see https://stackoverflow.com/a/15278302/90580
@@ -678,9 +681,9 @@ class TransferServiceApp(ConsoleApp):
 
         if requests_lock.locked():      # pragma: no cover
             requests_lock.release()
-            self.log('print', f"{pre}: releasing requests lock")
+            self.log('print', f"{pre}: released requests lock")
 
-        if self.server_instance and self.server_thread:
+        if getattr(self, 'server_instance', False) and getattr(self, 'server_thread', False):
             if threading.current_thread() == self.server_thread:    # pragma: no cover
                 thread = threading.Thread(name="StopTransferService", target=self.server_instance.shutdown)
                 thread.start()
@@ -693,8 +696,6 @@ class TransferServiceApp(ConsoleApp):
                 if self.server_thread.is_alive():   # pragma: no cover
                     self.log('print', f"{pre}: server thread join timed out")
         self.server_instance = self.server_thread = None
-
-        self.reqs_and_logs = list()
 
 
 if __name__ == '__main__':      # pragma: no cover
