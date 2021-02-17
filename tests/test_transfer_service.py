@@ -135,8 +135,7 @@ class TestThreadedTCPRequestHandler:
         request = MagicMock()
         client_address = MagicMock()
         server = MagicMock()
-        with pytest.raises(AttributeError):
-            ThreadedTCPRequestHandler(request, client_address, server)
+        ThreadedTCPRequestHandler(request, client_address, server)
 
 
 class TestTransferServiceApp:

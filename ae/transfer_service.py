@@ -27,12 +27,14 @@ run transfer service in standalone mode
 
 Execute this module for to run the transfer services as a separate standalone process via::
 
-    python transfer_service.py [--bind=...] [--port=...]
+    python transfer_service.py [--bind=...] [--port=...] [--buf_len=...]
 
-You can specify the two command line options (see also :func:`service_factory`):
+The following command line options are overwriting the default server address and socket buffer length (see also
+:func:`service_factory`):
 
 * 'bind' to restrict the incoming connections to an ip address/range (overwriting the default :data:`SERVER_BIND`).
 * 'port' to specify the socket port (overwriting the default port :data:`SERVER_PORT`).
+* 'buf_len' to specify the socket buffer length (overwriting the default buffer length :data:`SOCKET_BUF_LEN`).
 
 After that the transfer service will be able to receive files send from another process or device.
 
@@ -49,6 +51,8 @@ application::
     from ae.transfer_service import service_factory
 
     transfer_service_app = service_factory()
+    transfer_service_app.set_option('port', 12345, save_to_config=False)
+    transfer_service_app.set_option('buf_len', 34567, save_to_config=False)
     transfer_service_app.start_server(threaded=True)
 
 
@@ -83,7 +87,7 @@ the remote procedure `send_file` like shown in the following example::
     import socket
     from ae.transfer_service import connect_and_request
 
-    request_kwargs = dict(method_name='send_file', file_path='path_to_file/file_name.ext', remote_ip='192.168.1.123')
+    request_kwargs = dict(method_name='send_file', file_path='path_to_file/file_name.ext', remote_ip='192.168.3.123')
     with socket.socket() as sock:
         response_kwargs = connect_and_request(sock, request_kwargs)
 
@@ -127,7 +131,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.1.7'
+__version__ = '0.1.8'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) for to connect and request a server process
@@ -143,7 +147,7 @@ SERVER_PORT = 36969                 #: server listening port
 
 SHUTDOWN_TIMEOUT = 3.9              #: timeout (in seconds) to shutdown/stop the console app
 
-SOCKET_BUF_LEN = 8192               #: buf length for socket receives and sends
+SOCKET_BUF_LEN = 16 * 1024          #: buf length for socket receives and sends
 
 TRANSFER_KWARGS_DATE_TIME_NAME_PARTS = ('_date', '_time')   #: kwarg name suffix for values automatically converted
 TRANSFER_KWARGS_LINE_END_CHAR = "\n"                        #: end of line/command character as string
@@ -175,13 +179,15 @@ def clean_log_str(log_str: Union[str, bytes]) -> str:
 
 
 def connect_and_request(sock: socket.socket, request_kwargs: TransferKwargs,
-                        timeout: Optional[float] = CONNECTION_TIMEOUT) -> TransferKwargs:
+                        buf_len: int = SOCKET_BUF_LEN, timeout: Optional[float] = CONNECTION_TIMEOUT) -> TransferKwargs:
     """ connect to remote, send first command/action and return response as transfer kwargs dict.
 
     :param sock:                new socket instance.
     :param request_kwargs:      first/initial request kwargs dict. If the key `'server_address'` is not provided (with
                                 the server address as (host, ip) tuple), then ('localhost', SERVER_PORT) is used.
                                 If the key 'local_ip' is not specified then the local ip address will be used.
+    :param buf_len:             socket buffer length. If not passed then :data:`SOCKET_BUF_LEN` will be used. Pass
+                                zero/0 for to use the buf length defined via the 'buf_len' command line option.
     :param timeout:             timeout in seconds or None for to use socket/system default timeout. If not passed
                                 then the default timeout specified by :data:`CONNECTION_TIMEOUT` will be used.
     :return:                    response transfer kwargs dict.
@@ -194,24 +200,28 @@ def connect_and_request(sock: socket.socket, request_kwargs: TransferKwargs,
         sock.settimeout(timeout)
         sock.connect(request_kwargs.get('server_address', ('localhost', SERVER_PORT)))
         sock.sendall(bytes(transfer_kwargs_literal(request_kwargs), **ENCODING_KWARGS))
-        response_lit = str(recv_bytes(sock), **ENCODING_KWARGS)[:-1]
+        response_lit = str(recv_bytes(sock, buf_len=buf_len), **ENCODING_KWARGS)[:-1]
         return transfer_kwargs_from_literal(response_lit)
     except (Exception, IOError, OSError, SyntaxError, ValueError) as ex:
         request_kwargs['error'] = CONNECT_ERR_PREFIX + f"{ex} processing received request {request_kwargs}"
         return request_kwargs
 
 
-def recv_bytes(sock: socket.socket) -> bytes:
+def recv_bytes(sock: socket.socket, buf_len: int = SOCKET_BUF_LEN) -> bytes:
     """ receive all bytes from the passed client socket instance until connection lost or line end reached.
 
-    :param sock:                socket.
+    :param sock:                socket instance.
+    :param buf_len:             socket buffer length. If not passed then :data:`SOCKET_BUF_LEN` will be used. Pass
+                                zero/0 for to use the buf length defined via the 'buf_len' command line option.
     :return:                    received bytes.
     """
     pre = "transfer_service.recv_bytes()"
-    server_app and server_app.vpo(f"{pre}: called with sock={sock} ... waiting for receive")
+    if not buf_len:
+        buf_len = server_app.get_opt('buf_len') if server_app else SOCKET_BUF_LEN
+    server_app and server_app.vpo(f"{pre}: sock={sock} buf_len={buf_len} ... waiting for receive")
     buf = b""
     while True:
-        chunk = sock.recv(SOCKET_BUF_LEN)
+        chunk = sock.recv(buf_len)
         server_app and server_app.vpo(f"{pre}: received {len(chunk)} bytes chunk=({clean_log_str(chunk)}); sock={sock}")
         buf += chunk
         if buf[-1:] == TRANSFER_KWARGS_LINE_END_BYTE:
@@ -235,6 +245,7 @@ def service_factory(task_id_func: Optional[Callable[[str, str, str], str]] = Non
     server_app = TransferServiceApp(app_name='transfer_service', multi_threading=True, disable_buffering=True)
     server_app.add_option('bind', "server bind address", SERVER_BIND, 'b')
     server_app.add_option('port', "server listening port", SERVER_PORT, 'p')
+    server_app.add_option('buf_len', "socket buffer length", SOCKET_BUF_LEN, 'l')
 
     if task_id_func:
         # noinspection PyTypeHints
@@ -387,7 +398,7 @@ class TransferServiceApp(ConsoleApp):
         if callable(out_method):
             out_method(("" if self.active_log_stream else f"{threading.current_thread().name: <15}") + f"{message}")
 
-        if getattr(self, log_level, True):
+        if getattr(self, log_level, True) and hasattr(self, 'reqs_and_logs'):
             log_time = datetime.datetime.now()
 
             requests_lock.acquire()
@@ -489,7 +500,7 @@ class TransferServiceApp(ConsoleApp):
 
         errors: List[str] = list()
         copy_bytes(handler.rfile, recv_file, total_bytes=file_length, transferred_bytes=start_offset,
-                   buf_size=SOCKET_BUF_LEN, recoverable=True, errors=errors, progress_func=_progress)
+                   buf_size=self.get_opt('buf_len'), recoverable=True, errors=errors, progress_func=_progress)
         if errors:
             transfer_kwargs_update(request_kwargs, response_kwargs, error="\n".join(errors))
 
@@ -587,7 +598,7 @@ class TransferServiceApp(ConsoleApp):
         if remote_ip == local_ip:
             recv_kwargs['series_file'] = True   # create duplicate for debugging and testing
         with socket.socket() as sock:           # use socket default args: socket.AF_INET, socket.SOCK_STREAM
-            response_kwargs = connect_and_request(sock, recv_kwargs)
+            response_kwargs = connect_and_request(sock, recv_kwargs, buf_len=0)
             self.log('verbose', f"{pre} received response to {recv_kwargs['method_name']} method: {response_kwargs}")
             if 'error' in response_kwargs:
                 return response_kwargs
@@ -600,12 +611,13 @@ class TransferServiceApp(ConsoleApp):
                 content = content[offset:]
 
             # instead of sock.sendall(content) send in chunks for to allow progress display
+            buf_len = self.get_opt('buf_len')
             while offset < count and 'error' not in request_kwargs:
-                chunk = content[:SOCKET_BUF_LEN]
+                chunk = content[:buf_len]
                 sock.send(chunk)
                 offset += len(chunk)
                 transfer_kwargs_update(request_kwargs, response_kwargs, transferred_bytes=offset)
-                content = content[SOCKET_BUF_LEN:]
+                content = content[buf_len:]
 
         return response_kwargs
 
@@ -626,7 +638,7 @@ class TransferServiceApp(ConsoleApp):
         recv_kwargs['rt_id'] = self.id_of_task('recv', 'message', msg + '@' + recv_kwargs['local_ip'])
 
         with socket.socket() as sock:           # use socket default args: socket.AF_INET, socket.SOCK_STREAM
-            response_kwargs = connect_and_request(sock, recv_kwargs)
+            response_kwargs = connect_and_request(sock, recv_kwargs, buf_len=0)
         self.log('verbose', f"{pre}: received response to {recv_kwargs['method_name']} method call: {response_kwargs}")
 
         return response_kwargs
