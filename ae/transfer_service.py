@@ -127,7 +127,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.1.6'
+__version__ = '0.1.7'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) for to connect and request a server process
@@ -640,11 +640,11 @@ class TransferServiceApp(ConsoleApp):
         self.stop_server()
         super().shutdown(exit_code=exit_code, timeout=timeout)
 
-    def start_server(self, threaded: bool = False) -> bool:
+    def start_server(self, threaded: bool = False) -> str:
         """ start server and run until main app :meth:`~.stop_server`.
 
         :param threaded:        optionally pass True to use separate thread for the server process.
-        :return:                True if server instance/thread got started else False.
+        :return:                empty string/"" if server instance/thread got started else error message string.
         """
         pre = "TransferServiceApp.start_server()"
         self.reqs_and_logs = list()
@@ -656,24 +656,31 @@ class TransferServiceApp(ConsoleApp):
 
         self.log('debug', f"{pre}: threaded={threaded}")
 
-        server_address = (self.get_option('bind'), self.get_option('port'))
-        ThreadingTCPServer.allow_reuse_address = True   # patching class, see https://stackoverflow.com/a/15278302/90580
-        self.server_instance = ThreadingTCPServer(server_address, ThreadedTCPRequestHandler)
+        err_msg = ""
+        try:
+            server_address = (self.get_opt('bind'), self.get_opt('port'))
+            ThreadingTCPServer.allow_reuse_address = True   # patching class: https://stackoverflow.com/a/15278302/90580
+            self.server_instance = ThreadingTCPServer(server_address, ThreadedTCPRequestHandler)
 
-        self.log('verbose', f"{pre}: (ip,port)={server_address}/{self.server_instance.server_address}")
+            self.log('verbose', f"{pre}: (ip,port)={server_address}/{self.server_instance.server_address}")
 
-        tct = threading.current_thread()
-        if threaded:
-            # Start a thread with the server -- that thread will then start one more thread for each request
-            self.server_thread = threading.Thread(name="TransferServiceTrd", target=self.server_instance.serve_forever)
-            self.server_thread.start()
-            self.log('verbose', f"{pre}: server started from thread={tct.name} in thread={self.server_thread.name}")
-        else:
-            self.log('verbose', f"{pre}: starting server loop - using current thread={tct.name}")
-            self.server_thread = tct
-            self.server_instance.serve_forever()
+            tct = threading.current_thread()
+            if threaded:
+                # Start a thread with the server -- that thread will then start one more thread for each request
+                self.server_thread = threading.Thread(name="TransferThread", target=self.server_instance.serve_forever)
+                self.server_thread.start()
+                self.log('verbose', f"{pre}: server started from thread={tct.name} in thread={self.server_thread.name}")
+            else:
+                self.log('verbose', f"{pre}: starting server loop - using current thread={tct.name}")
+                self.server_thread = tct
+                self.server_instance.serve_forever()
 
-        return bool(self.server_instance and self.server_thread)
+        except (IOError, OSError, Exception) as ex:
+            err_msg = f"{pre}: exception {ex}"
+            self.log('print', err_msg)
+            self.server_instance = self.server_thread = None
+
+        return err_msg
 
     def stop_server(self):
         """ stop/pause transfer service server - callable also if not running to reset/prepare this app instance. """

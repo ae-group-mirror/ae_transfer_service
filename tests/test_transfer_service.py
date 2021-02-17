@@ -389,3 +389,10 @@ class TestTransferServiceApp:
         while not getattr(app, 'server_instance', False) and not getattr(app, 'server_thread', False):
             pass
         app.stop_server()
+
+    def test_start_server_exception(self, restore_app_env):
+        app = service_factory()
+        app.run_app()
+        app.set_opt('bind', ":invalid bind address:", save_to_config=False)
+        app.set_opt('port', ":invalid port:", save_to_config=False)
+        assert app.start_server(threaded=True)
