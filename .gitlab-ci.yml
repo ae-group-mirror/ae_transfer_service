@@ -1,5 +1,4 @@
 # THIS FILE IS EXCLUSIVELY MAINTAINED IN THE NAMESPACE ROOT PACKAGE. CHANGES HAVE TO BE DONE THERE.
-# All changes will be deployed automatically to all the portions of this namespace package.
 image: python:3.6
 
 

@@ -2,12 +2,14 @@
 import datetime
 import glob
 import os
+import pytest
 import threading
 import time
 from socket import socket
 from unittest.mock import MagicMock
 
-import pytest
+from de.core import TESTS_FOLDER
+
 from ae.base import os_local_ip
 from ae.console import ConsoleApp
 from ae.files import read_file_text, write_file_text
@@ -233,7 +235,7 @@ class TestTransferServiceApp:
 
     def test_recv_file_zero_len(self, threaded_server):
         req = dict(file_path="not_exists.xxx", total_bytes=0)
-        PATH_PLACEHOLDERS['downloads'] = 'tests'
+        PATH_PLACEHOLDERS['downloads'] = TESTS_FOLDER
         res = threaded_server.recv_file(req, MagicMock())
         assert 'error' in res
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
@@ -242,7 +244,7 @@ class TestTransferServiceApp:
         file_name = "tests/conftest.py"
         with open(file_name, 'rb') as fp:
             req = dict(file_path="conftest.py", total_bytes=os.fstat(fp.fileno()).st_size, series_file=True)
-            PATH_PLACEHOLDERS['downloads'] = 'tests'
+            PATH_PLACEHOLDERS['downloads'] = TESTS_FOLDER
             handler = MagicMock()
             handler.rfile = fp
             res = threaded_server.recv_file(req, handler)
@@ -262,7 +264,7 @@ class TestTransferServiceApp:
     def test_recv_file(self, threaded_server):
         with open("tests/conftest.py", 'rb') as fp:
             req = dict(file_path="conftest.py", total_bytes=os.fstat(fp.fileno()).st_size)
-            PATH_PLACEHOLDERS['downloads'] = 'tests'
+            PATH_PLACEHOLDERS['downloads'] = TESTS_FOLDER
             handler = MagicMock()
             handler.rfile = fp
             res = threaded_server.recv_file(req, handler)

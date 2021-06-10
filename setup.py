@@ -1,9 +1,8 @@
 """ common setup for root and portions (modules or sub-packages) of the ae namespace package.
 
 # THIS FILE IS EXCLUSIVELY MAINTAINED IN THE NAMESPACE ROOT PACKAGE. CHANGES HAVE TO BE DONE THERE.
-# All changes will be deployed automatically to all the portions of this namespace package.
 
-This file get run by each portion of this namespace package for builds (sdist/bdist_wheel)
+this file get run by each portion of this namespace package for builds (sdist/bdist_wheel)
 and installation (install); also gets imported by the root package (for the globals defined
 here) for documentation builds (docs/conf.py), common file deploys and commit preparations.
 """
@@ -51,7 +50,7 @@ if __name__ == "__main__":
             'dev': nev['docs_require'] + nev['tests_require'],
         },
         classifiers=[
-            "Development Status :: 1 - Planning",
+            "Development Status :: 2 - Pre-Alpha",
             "Natural Language :: English",
             "Operating System :: OS Independent",
             "Programming Language :: Python",

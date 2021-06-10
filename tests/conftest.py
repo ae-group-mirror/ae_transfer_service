@@ -34,17 +34,17 @@ def restore_app_env(sys_argv_app_key_restore):
     """ restore app environment after test run - needed for tests instantiating AppBase/ConsoleApp. """
     # LOCAL IMPORT because a portion may not depend-on/use ae.core
     # noinspection PyProtectedMember
-    from ae.core import app_inst_lock, _app_instances, _unregister_app_instance
+    from ae.core import app_inst_lock, _APP_INSTANCES, _unregister_app_instance
 
     yield sys_argv_app_key_restore
 
-    # added outer list() because unregister does _app_instances.pop() calls
+    # added outer list() because unregister does _APP_INSTANCES.pop() calls
     # and added inner list() because the .keys() 'generator' object is not reversible
     with app_inst_lock:
-        app_keys = list(reversed(list(_app_instances.keys())))
+        app_keys = list(reversed(list(_APP_INSTANCES.keys())))
         for key in app_keys:
             # copied from ae.enaml_app conftest.py (not needed for apps based on ae.kivy_app)
-            app_instance = _app_instances[key]
+            app_instance = _APP_INSTANCES[key]
             app_win = getattr(app_instance, 'framework_win', False)
             if app_win and hasattr(app_win, 'close') and callable(app_win.close):
                 app_win.close()

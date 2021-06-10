@@ -1,16 +1,15 @@
 <!-- THIS FILE IS EXCLUSIVELY MAINTAINED IN THE NAMESPACE ROOT PACKAGE. CHANGES HAVE TO BE DONE THERE. -->
-# Using This Package Securely
+# using this package securely
 
-## Reporting Security Issues
+## reporting security issues
 
-To report a security issue, please email [aecker2@gmail.com](mailto:aecker2@gmail.com).
+to report a security issue, please email [aecker2@gmail.com](mailto:aecker2@gmail.com).
 
-## Dynamic Execution Of Code Blocks And Evaluable Expressions
+## dynamic execution of code blocks and evaluable expressions
 
-The ae package provides powerful functions for to execute code blocks and for to evaluate
-expressions, which could be mis-used for to execute inject and execute malicious code
+the ae package provides powerful functions to execute code blocks and to evaluate
+expressions, which could be mis-used to execute inject and execute malicious code
 snippets.
 
-These functions are also used for to interpret command line arguments and configuration
-file options. Therefore caught has to be taken to prevent that external processes having
-write access to your shell scripts and configuration files.
+caught has to be taken if these functions are interpreting command line arguments,
+config file options, or user input.
