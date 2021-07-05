@@ -2,50 +2,50 @@
 transfer client and server services
 ===================================
 
-This ae portion is providing client and server services for to transfer files and text messages between two devices in
+this ae portion is providing client and server services to transfer files and text messages between two devices in
 the same local network.
 
-The number of parallel running file and message transfers is only limited by the available resources of the involved
+the number of parallel running file and message transfers is only limited by the available resources of the involved
 devices.
 
-If a file transfers gets interrupted it can be recovered later and without the need to resend the already transferred
+if a file transfers gets interrupted it can be recovered later and without the need to resend the already transferred
 file content.
 
-Standard file paths - like e.g. the Documents or Downloads folders - are getting automatically adopted to the specific
+standard file paths - like e.g. the documents or downloads folders - are getting automatically adopted to the specific
 path structures of each involved device and operating system.
 
 
 transfer service life cycle
 ---------------------------
 
-The transfer service can be invoked in different ways: standalone as a separate process or attached and embedded into
+the transfer service can be invoked in different ways: standalone as a separate process or attached and embedded into
 a controlling application.
 
 
 run transfer service in standalone mode
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Execute this module for to run the transfer services as a separate standalone process via::
+execute this module to run the transfer services as a separate standalone process via::
 
     python transfer_service.py [--bind=...] [--port=...] [--buf_len=...]
 
-The following command line options are overwriting the default server address and socket buffer length (see also
+the following command line options are overwriting the default server address and socket buffer length (see also
 :func:`service_factory`):
 
 * 'bind' to restrict the incoming connections to an ip address/range (overwriting the default :data:`SERVER_BIND`).
 * 'port' to specify the socket port (overwriting the default port :data:`SERVER_PORT`).
 * 'buf_len' to specify the socket buffer length (overwriting the default buffer length :data:`SOCKET_BUF_LEN`).
 
-After that the transfer service will be able to receive files send from another process or device.
+after that the transfer service will be able to receive files send from another process or device.
 
 .. note::
-    On Android a standalone transfer service has to be started as android service.
+    on Android a standalone transfer service has to be started as android service.
 
 
 run transfer service attached to any app
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-Alternatively you can run the transfer service server in a separate thread within respectively attached to your
+alternatively you can run the transfer service server in a separate thread within respectively attached to your
 application::
 
     from ae.transfer_service import service_factory
@@ -59,28 +59,28 @@ application::
 pause or stop transfer service
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
-For to manually pause the transfer service, store the app instance of the transfer service app
+to manually pause the transfer service, store the app instance of the transfer service app
 (`transfer_service_app` in the example above) and call its :meth:`~TransferServiceApp.stop_server` method::
 
     transfer_service_app.stop_server()
 
-For to fully stop the transfer service and terminate the transfer service app call instead its
+to fully stop the transfer service and terminate the transfer service app call instead its
 :meth:`~TransferServiceApp.shutdown` method::
 
     transfer_service_app.shutdown()
 
 .. hint::
-    The :meth:`~ae.core.AppBase.shutdown` method of the base app instance (:class:`~ae.core.AppBase`) automatically
+    the :meth:`~ae.core.AppBase.shutdown` method of the base app instance (:class:`~ae.core.AppBase`) automatically
     ensures a clean shutdown of the transfer service server on app quit/exit.
 
 
 send file to another transfer service server
 --------------------------------------------
 
-For to send files from one transfer server to another running transfer server, a separate client process has to be
+to send files from one transfer server to another running transfer server, a separate client process has to be
 started on the device storing the file to be send.
 
-For to initiate the file transfer the client process has to make a tcp connection to the transfer server running on the
+to initiate the file transfer the client process has to make a tcp connection to the transfer server running on the
 same device, specifying the path of the file to send and the remote ip of the receiving transfer server and finally call
 the remote procedure `send_file` like shown in the following example::
 
@@ -94,14 +94,14 @@ the remote procedure `send_file` like shown in the following example::
     if 'error' in response_kwargs:
         # handle error (e.g. display to user or add to a log file)
 
-If the file transfer failed then the transfer kwargs dict returned by :func:`connect_and_request` will contain an
+if the file transfer failed then the transfer kwargs dict returned by :func:`connect_and_request` will contain an
 `error` key containing the error message text.
 
 
 implemented remote procedures
 -----------------------------
 
-The following remote procedures are provided by the transfer service server:
+the following remote procedures are provided by the transfer service server:
 
 * `cancel_request`: cancel running file transfer.
 * `pending_requests`: get log info the progress/status of all currently running file transfers.
@@ -111,7 +111,7 @@ The following remote procedures are provided by the transfer service server:
 * `send_message`: send text message to other transfer service server.
 
 .. hint::
-    The demo app `ComPartY <https://gitlab.com/ae-group/comparty>`_ is using all provided remote procedures.
+    the demo app `ComPartY <https://gitlab.com/ae-group/comparty>`_ is using all provided remote procedures.
 
 """
 import ast
@@ -131,10 +131,10 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.2.8'
+__version__ = '0.2.9'
 
 
-CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) for to connect and request a server process
+CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
 
 CONNECT_ERR_PREFIX = "transfer_service.connect_and_request() exception "
 """ error message string prefix if error happened directly in :func:`connect_and_request` helper (no protocol error).
@@ -142,7 +142,7 @@ CONNECT_ERR_PREFIX = "transfer_service.connect_and_request() exception "
 
 ENCODING_KWARGS = dict(encoding='UTF-8', errors='ignore')   #: default encoding and encoding error handling strategy
 
-SERVER_BIND = ""                    #: setting BIND to '' or None for to allow connections for all available interfaces
+SERVER_BIND = ""                    #: setting BIND to '' or None to allow connections for all available interfaces
 SERVER_PORT = 36969                 #: server listening port
 
 SHUTDOWN_TIMEOUT = 3.9              #: timeout (in seconds) to shutdown/stop the console app
@@ -163,7 +163,7 @@ server_app: Optional['TransferServiceApp'] = None     #: transfer service server
 
 
 def clean_log_str(log_str: Union[str, bytes]) -> str:
-    """ remove high-commas and backslashes from the passed string for to add it to the logs (preventing \\ duplicates).
+    """ remove high-commas and backslashes from the passed string to add it to the logs (preventing \\ duplicates).
 
     :param log_str:             log string or bytes array to clean up.
     :return:                    cleaned log string.
@@ -183,12 +183,12 @@ def connect_and_request(sock: socket.socket, request_kwargs: TransferKwargs,
     """ connect to remote, send first command/action and return response as transfer kwargs dict.
 
     :param sock:                new socket instance.
-    :param request_kwargs:      first/initial request kwargs dict. If the key `'server_address'` is not provided (with
+    :param request_kwargs:      first/initial request kwargs dict. if the key `'server_address'` is not provided (with
                                 the server address as (host, ip) tuple), then ('localhost', SERVER_PORT) is used.
-                                If the key 'local_ip' is not specified then the local ip address will be used.
-    :param buf_len:             socket buffer length. If not passed then :data:`SOCKET_BUF_LEN` will be used. Pass
-                                zero/0 for to use the buf length defined via the 'buf_len' command line option.
-    :param timeout:             timeout in seconds or None for to use socket/system default timeout. If not passed
+                                if the key 'local_ip' is not specified then the local ip address will be used.
+    :param buf_len:             socket buffer length. if not passed then :data:`SOCKET_BUF_LEN` will be used. pass
+                                zero/0 to use the buf length defined via the 'buf_len' command line option.
+    :param timeout:             timeout in seconds or None to use socket/system default timeout. if not passed
                                 then the default timeout specified by :data:`CONNECTION_TIMEOUT` will be used.
     :return:                    response transfer kwargs dict.
     """
@@ -211,8 +211,8 @@ def recv_bytes(sock: socket.socket, buf_len: int = SOCKET_BUF_LEN) -> bytes:
     """ receive all bytes from the passed client socket instance until connection lost or line end reached.
 
     :param sock:                socket instance.
-    :param buf_len:             socket buffer length. If not passed then :data:`SOCKET_BUF_LEN` will be used. Pass
-                                zero/0 for to use the buf length defined via the 'buf_len' command line option.
+    :param buf_len:             socket buffer length. if not passed then :data:`SOCKET_BUF_LEN` will be used. pass
+                                zero/0 to use the buf length defined via the 'buf_len' command line option.
     :return:                    received bytes.
     """
     pre = "transfer_service.recv_bytes()"
@@ -237,7 +237,7 @@ def recv_bytes(sock: socket.socket, buf_len: int = SOCKET_BUF_LEN) -> bytes:
 def service_factory(task_id_func: Optional[Callable[[str, str, str], str]] = None) -> 'TransferServiceApp':
     """ create server app instance including the command line options `bind` and `port`.
 
-    :param task_id_func:        callable for to return an unique id for a transfer request task.
+    :param task_id_func:        callable to return an unique id for a transfer request task.
     :return:                    transfer service app instance.
     """
     global server_app           #: singleton server instance
@@ -282,11 +282,11 @@ def transfer_kwargs_from_literal(transfer_kwargs_lit: str) -> TransferKwargs:
 
 
 def transfer_kwargs_literal(transfer_kwargs: TransferKwargs) -> str:
-    """ convert dict to str literal for to be sent via sockets (re-instantiable via transfer_kwargs_from_literal()).
+    """ convert dict to str literal to be sent via sockets (re-instantiable via transfer_kwargs_from_literal()).
 
     .. note::
-        For to ensure security (and prevent injections) only the following basic types can be used: `int`, `float`,
-        `boolean`, `str`, `bytes`, `list`, `tuple` and `dict`. Date/Time values are only allowed as dict value and of
+        to ensure security (and prevent injections) only the following basic types can be used: `int`, `float`,
+        `boolean`, `str`, `bytes`, `list`, `tuple` and `dict`. date/time values are only allowed as dict value and of
         the type `datetime.datetime`; additionally the key of this dict value has to contain one of the fragments
         defined in :data:`TRANSFER_KWARGS_DATE_TIME_NAME_PARTS`.
 
@@ -319,8 +319,8 @@ def transfer_kwargs_update(*variables, **kwargs):
 class ThreadedTCPRequestHandler(StreamRequestHandler):
     """ server request handler.
 
-    self.rfile is a file-like object created by the handler; for to use e.g. readline() instead of raw recv()
-    Likewise, self.wfile is a file-like object used to write back to the client.
+    self.rfile is a file-like object created by the handler; to use e.g. readline() instead of raw recv()
+    likewise, self.wfile is a file-like object used to write back to the client.
     """
     def handle(self):
         """ handle a single request """
@@ -379,14 +379,14 @@ class TransferServiceApp(ConsoleApp):
         return action + '_' + object_type + ':' + object_key
 
     def log(self, log_level: str, message: str):
-        """ print log message and add it to reqs_and_logs (for to be read by controller app).
+        """ print log message and add it to reqs_and_logs (to be read by controller app).
 
         .. note::
-            Please note that you have to use :func:`print` or one of the console print methods of the :class:`AppBase`
+            please note that you have to use :func:`print` or one of the console print methods of the :class:`AppBase`
             (like e.g. :meth:`~AppBase.verbose_out`, respective self.vpo) instead of this method for the logging of
             low level transport methods/functions (like e.g. :meth:`~TransferServiceApp.pending_requests`,
             :meth:`~TransferServiceApp.response_to_request`, :meth:`~ThreadedTCPRequestHandler.handle` or
-            :func:`recv_bytes`). This will prevent the duplication of a log message, because each call of this method
+            :func:`recv_bytes`). this will prevent the duplication of a log message, because each call of this method
             creates a new entry in :attr:`~TransferServiceApp.reqs_and_logs` which will be sent to the controlling app
             via the low level transport methods (which would recursively grow the sent messages until the system
             freezes), especially if the transfer kwargs are included into the log message.
@@ -442,7 +442,7 @@ class TransferServiceApp(ConsoleApp):
 
                                 * `'file_path'`: file path (can contain path placeholders).
                                 * `'total_bytes'`: total file length in bytes.
-                                * `'series_file'`: optionally, pass any value for to ensures new file name.
+                                * `'series_file'`: optionally, pass any value to ensures new file name.
 
         :param handler:         request handler class instance.
 
@@ -518,7 +518,7 @@ class TransferServiceApp(ConsoleApp):
     def response_to_request(self, request_lit: str, handler: StreamRequestHandler) -> str:
         """ process request to this server and return response string.
 
-        .. note:: this method is running in a separate thread (created by the server for to process this request).
+        .. note:: this method is running in a separate thread (created by the server to process this request).
 
         :param request_lit:     request string, which is a dict literal with `'method_name'` key.
         :param handler:         stream request handler instance.
@@ -610,7 +610,7 @@ class TransferServiceApp(ConsoleApp):
                 self.log('debug', f"{pre} recovering interrupted transfer at offset {offset}")
                 content = content[offset:]
 
-            # instead of sock.sendall(content) send in chunks for to allow progress display
+            # instead of sock.sendall(content) send in chunks to allow progress display
             buf_len = self.get_opt('buf_len')
             while offset < count and 'error' not in request_kwargs:
                 chunk = content[:buf_len]
@@ -644,7 +644,7 @@ class TransferServiceApp(ConsoleApp):
         return response_kwargs
 
     def shutdown(self, exit_code: Optional[int] = 0, timeout: Optional[float] = None):
-        """ overwritten for to stop a running transfer service server/threads on shutdown of this app instance.
+        """ overwritten to stop a running transfer service server/threads on shutdown of this app instance.
 
         :param exit_code:   set application OS exit code - see :meth:`~ae.core.AppBase.shutdown`.
         :param timeout:     timeout float value in seconds - see :meth:`~ae.core.AppBase.shutdown`.
@@ -678,7 +678,7 @@ class TransferServiceApp(ConsoleApp):
 
             tct = threading.current_thread()
             if threaded:
-                # Start a thread with the server -- that thread will then start one more thread for each request
+                # start a thread with the server -- that thread will then start one more thread for each request
                 self.server_thread = threading.Thread(name="TransferThread", target=self.server_instance.serve_forever)
                 self.server_thread.start()
                 self.log('verbose', f"{pre}: server started from thread={tct.name} in thread={self.server_thread.name}")
