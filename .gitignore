@@ -1,20 +1,16 @@
-# THIS FILE IS EXCLUSIVELY MAINTAINED IN THE NAMESPACE ROOT PACKAGE. CHANGES HAVE TO BE DONE THERE. 
-# ae:additional exludes
-docs/_autosummary/
-docs/_modules/
-docs/_sources/
-docs/_static/
-logs/
-coverage.svg
-mypy_report/
-.*.cfg
-.*.ini
-.idea/workspace.xml
-# .. for kivy projects
-.buildozer
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev_tpl_project V0.3.4 
+# ae:additional exludes for Sphinx, mypy, pylint, PyCharm, kivy, enaml
 bin
-# .. for enaml projects
+.buildozer
+.*.cfg
+.commit_msg.txt
+docs/_*/
 __enamlcache__
+.idea/
+.*.ini
+logs/
+mypy_report/
+.pylint/
 
 
 # created by https://www.gitignore.io/api/python
@@ -126,4 +122,3 @@ dmypy.json
 .pyre/
 
 # End of https://www.gitignore.io/api/python
-

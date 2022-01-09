@@ -8,9 +8,7 @@ import time
 from socket import socket
 from unittest.mock import MagicMock
 
-from de.core import TESTS_FOLDER
-
-from ae.base import os_local_ip
+from ae.base import TESTS_FOLDER, os_local_ip
 from ae.console import ConsoleApp
 from ae.files import read_file_text, write_file_text
 from ae.paths import PATH_PLACEHOLDERS
@@ -54,7 +52,7 @@ class TestHelpers:
 
     def test_connect_and_request_server_not_running(self):
         with socket() as sock:
-            res = connect_and_request(sock, dict())
+            res = connect_and_request(sock, {})
         assert 'error' in res
 
     def test_connect_and_request_server_running(self, threaded_server):
@@ -96,7 +94,7 @@ class TestHelpers:
         assert app.id_of_task is _id_of_task
 
     def test_transfer_kwargs_error(self):
-        kwargs = dict()
+        kwargs = {}
         err_msg = "1st err"
         transfer_kwargs_error(kwargs, err_msg)
         assert 'error' in kwargs
@@ -108,13 +106,13 @@ class TestHelpers:
         assert err_msg in kwargs['error']
 
     def test_transfer_service_from_literal_basics(self):
-        assert transfer_kwargs_from_literal("{}") == dict()
+        assert transfer_kwargs_from_literal("{}") == {}
 
     def test_transfer_service_from_literal_date_time(self):
         assert transfer_kwargs_from_literal("{'_date': (1999, 1, 10)}") == dict(_date=datetime.datetime(1999, 1, 10))
 
     def test_transfer_kwargs_literal_basics(self):
-        assert transfer_kwargs_literal(dict()) == "{}" + TRANSFER_KWARGS_LINE_END_CHAR
+        assert transfer_kwargs_literal({}) == "{}" + TRANSFER_KWARGS_LINE_END_CHAR
 
     def test_transfer_kwargs_literal_date_time(self):
         test_time = datetime.datetime.now()
@@ -122,8 +120,8 @@ class TestHelpers:
                "{'_time': " + str(tuple(test_time.timetuple())[:7]) + "}" + TRANSFER_KWARGS_LINE_END_CHAR
 
     def test_transfer_kwargs_update(self):
-        kwargs = dict()
-        kwargs2 = dict()
+        kwargs = {}
+        kwargs2 = {}
         new_val = "new_val"
         transfer_kwargs_update(kwargs, kwargs2, new_key=new_val)
         assert 'new_key' in kwargs
@@ -199,7 +197,7 @@ class TestTransferServiceApp:
         rt_id = "rt_id"
         rt_req = dict(rt_id=rt_id)
         threaded_server.reqs_and_logs.append(rt_req)
-        req = dict()
+        req = {}
         res = threaded_server.pending_requests(req, MagicMock())
         assert 'error' not in res
         assert threaded_server.reqs_and_logs[0]['rt_id'] == rt_id
@@ -210,7 +208,7 @@ class TestTransferServiceApp:
         rt_id = "rt_id"
         rt_req = dict(rt_id=rt_id, error="error")
         threaded_server.reqs_and_logs.append(rt_req)
-        req = dict()
+        req = {}
         res = threaded_server.pending_requests(req, MagicMock())
         assert 'error' not in res
         assert not threaded_server.reqs_and_logs
@@ -220,7 +218,7 @@ class TestTransferServiceApp:
         rt_id = "rt_id"
         rt_req = dict(rt_id=rt_id, completed=True)
         threaded_server.reqs_and_logs.append(rt_req)
-        req = dict()
+        req = {}
         res = threaded_server.pending_requests(req, MagicMock())
         assert 'error' not in res
         assert not threaded_server.reqs_and_logs
@@ -306,7 +304,7 @@ class TestTransferServiceApp:
 
     def test_response_to_request_err_empty_res(self, threaded_server):
         req = dict(method_name='patched_meth')
-        setattr(threaded_server, 'patched_meth', lambda *_args, **_kwargs: dict())
+        setattr(threaded_server, 'patched_meth', lambda *_args, **_kwargs: {})
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' in res

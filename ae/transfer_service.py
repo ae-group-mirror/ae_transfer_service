@@ -126,12 +126,12 @@ from typing import Any, Callable, Dict, List, Optional, Union
 
 from ae.base import DATE_TIME_ISO, UNSET, os_local_ip                                                   # type: ignore
 from ae.files import copy_bytes                                                                         # type: ignore
-from ae.paths import PATH_PLACEHOLDERS, norm_path, placeholder_path, series_file_name                   # type: ignore
+from ae.paths import PATH_PLACEHOLDERS, normalize, placeholder_path, series_file_name                   # type: ignore
 from ae.deep import deep_replace                                                                        # type: ignore
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.2.9'
+__version__ = '0.3.9'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -451,7 +451,7 @@ class TransferServiceApp(ConsoleApp):
                                 * `'error'`: error message string if an error occurred.
                                 * `'transferred_bytes'`: start offset on recovered transfer (previously received bytes).
         """
-        file_path = norm_path(request_kwargs['file_path'])
+        file_path = normalize(request_kwargs['file_path'], make_absolute=False, resolve_sym_links=False)
         file_folder, file_name = os.path.split(file_path)
         if not os.path.exists(file_folder):
             file_folder = PATH_PLACEHOLDERS['downloads']
@@ -498,7 +498,7 @@ class TransferServiceApp(ConsoleApp):
             transfer_kwargs_update(request_kwargs, response_kwargs, **kwargs)
             return ""
 
-        errors: List[str] = list()
+        errors: List[str] = []
         copy_bytes(handler.rfile, recv_file, total_bytes=file_length, transferred_bytes=start_offset,
                    buf_size=self.get_opt('buf_len'), recoverable=True, errors=errors, progress_func=_progress)
         if errors:
@@ -535,7 +535,7 @@ class TransferServiceApp(ConsoleApp):
             self.po(f"{pre} exception {ex} on eval of request literal {request_lit[:180]}...")
             response_kwargs = dict(error=f"{pre} exception='{ex}' in parsing the request literal '{request_lit}'")
         else:
-            response_kwargs = dict()        # default response if exception get raised
+            response_kwargs = {}        # default response if exception get raised
             method_name = request_kwargs['method_name']
             try:
                 if method_name != 'pending_requests':
@@ -659,7 +659,7 @@ class TransferServiceApp(ConsoleApp):
         :return:                empty string/"" if server instance/thread got started else error message string.
         """
         pre = "TransferServiceApp.start_server()"
-        self.reqs_and_logs = list()
+        self.reqs_and_logs = []
         self.server_instance = self.server_thread = None
 
         if requests_lock.locked():      # pragma: no cover

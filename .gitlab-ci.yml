@@ -1,4 +1,4 @@
-# THIS FILE IS EXCLUSIVELY MAINTAINED IN THE NAMESPACE ROOT PACKAGE. CHANGES HAVE TO BE DONE THERE.
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev_tpl_project V0.3.4 
 image: python:3.6
 
 
@@ -7,81 +7,53 @@ image: python:3.6
 
 before_script:
   - python --version
-  - pip install --upgrade setuptools
-  - pip install --upgrade -r requirements.txt -r test_requirements.txt
+  - pip install --upgrade setuptools pip
+  - pip install --upgrade -r requirements.txt -r tests/requirements.txt
 
 
-pytest:
+integrity:
   script:
-    - python -m pytest --cov-report html --cov=ae tests/
-    - coverage report | tee coverage.txt
-    - coverage-badge -o coverage.svg -f
-  artifacts:
-    paths:
-      - htmlcov/
-      - coverage.txt
-      - coverage.svg
-
-
-flake8:
-  script:
-    - flake8 -v --max-line-length=120 ae
-
-mypy:
-  script:
-    - mkdir -p ./mypy_report
-    - python -m mypy -v --namespace-packages --show-error-codes --show-error-context --show-column-numbers --pretty
-      --lineprecision-report mypy_report ae
-    - anybadge --label=MyPy --value=passed --file=mypy_report/mypy.svg -o
-    - ls -l -R
+    - grm -v check-integrity
   artifacts:
     paths:
       - mypy_report/
-
-pylint:
-  script:
-    - mkdir -p ./pylint
-    - pylint --output-format=text --max-line-length=120 ae | tee ./pylint/pylint.log || pylint-exit $?
-    - PYLINT_SCORE=$(sed -n 's/^Your code has been rated at \([-0-9.]*\)\/.*/\1/p' ./pylint/pylint.log)
-    - anybadge --label=Pylint --file=pylint/pylint.svg --value=$PYLINT_SCORE 2=red 4=orange 8=yellow 10=green
-    - echo "Pylint score is $PYLINT_SCORE"
-  artifacts:
-    paths:
-      - pylint/
-
-
-deploy_staging:
-  stage: deploy
-  variables:
-    TWINE_USERNAME: $PYPI_USERNAME
-    TWINE_PASSWORD: $PYPI_PASSWORD
-  before_script:
-     - pip install --upgrade twine wheel de_core
-     - python setup.py sdist bdist_wheel
-  script:
-    - twine upload --verbose dist/*
-  only:
-    - master
+      - .pylint/
+      - htmlcov/
+      - .pytest_cache
 
 
 pages:
   stage: deploy
   dependencies:
-    - pytest
-    - mypy
-    - pylint
+    - integrity
   script:
+    - ls -l -R
     - mkdir -p public/coverage
     - mv -f -v htmlcov/* public/coverage
-    - mv -f -v coverage.txt public/
-    - mv -f -v coverage.svg public/
+    - mv -f -v .pytest_cache/coverage.txt public/
+    - mv -f -v .pytest_cache/coverage.svg public/
     - mv -f -v mypy_report/lineprecision.txt public/
     - mv -f -v mypy_report/mypy.svg public/
-    - mv -f -v pylint/pylint.svg public/
-    - mv -f -v pylint/pylint.log public/
-    - ls -l -R
+    - mv -f -v .pylint/pylint.svg public/
+    - mv -f -v .pylint/pylint.log public/
   artifacts:
     paths:
       - public
-  only:
-    - master
+
+
+pypi_deploy:
+  stage: deploy
+  rules:
+    # - if: $CI_COMMIT_TAG =~ /^v?[0-9]+[.][0-9]+([.][0-9]+)?$/
+    # CI_COMMIT_TAG is only set if the push does contain a new tag (and no new commit); separate push and rules are
+    # additionally creating duplicate jobs on gitlab CI - finally using release branch to trigger deploy.
+    - if: $CI_COMMIT_BRANCH =~ /^release/
+  variables:
+    # the pushed branch has to be a protected branch in order to get the CI variables for the twine/PyPI authentication.
+    TWINE_USERNAME: $PYPI_USERNAME
+    TWINE_PASSWORD: $PYPI_PASSWORD
+  before_script:
+     - pip install --upgrade twine wheel aedev_setup_project
+     - python setup.py sdist bdist_wheel
+  script:
+    - twine upload --verbose dist/*
