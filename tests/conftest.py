@@ -1,7 +1,5 @@
-""" fixtures for this ae namespace portion.
-# THIS FILE IS EXCLUSIVELY MAINTAINED IN THE NAMESPACE ROOT PACKAGE. CHANGES HAVE TO BE DONE THERE.
-# All changes will be deployed automatically to all the portions of this namespace package.
-"""
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev_tpl_project V0.3.4 
+""" fixtures for to test this project """
 import os
 import sys
 import glob
@@ -9,7 +7,7 @@ import pytest
 
 
 SKIP_EXPRESSION = "'CI_PROJECT_ID' in os.environ"
-skip_gitlab_ci = pytest.mark.skipif(SKIP_EXPRESSION, reason="headless gitlab CI python 3.6 image lacks window system")
+skip_gitlab_ci = pytest.mark.skipif(SKIP_EXPRESSION, reason="incomplete development environment and headless gitlab CI")
 
 
 @pytest.fixture
@@ -38,8 +36,8 @@ def restore_app_env(sys_argv_app_key_restore):
 
     yield sys_argv_app_key_restore
 
-    # added outer list() because unregister does _APP_INSTANCES.pop() calls
-    # and added inner list() because the .keys() 'generator' object is not reversible
+    # added outer list because unregister does _APP_INSTANCES.pop() calls
+    # and added inner list because the .keys() 'generator' object is not reversible
     with app_inst_lock:
         app_keys = list(reversed(list(_APP_INSTANCES.keys())))
         for key in app_keys:
@@ -76,7 +74,7 @@ def delete_files(file_name, keep_ext=False, ret_type='count'):
     else:
         file_mask = file_name + '*'
     cnt = 0
-    ret = list()
+    ret = []
     for fn in glob.glob(file_mask):
         if ret_type == 'contents':
             with open(fn) as fd:
