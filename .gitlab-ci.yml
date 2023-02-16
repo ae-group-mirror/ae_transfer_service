@@ -1,5 +1,5 @@
-# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev_tpl_project V0.3.4 
-image: python:3.6
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.tpl_project V0.3.25
+image: python:3.9
 
 
 
@@ -53,7 +53,7 @@ pypi_deploy:
     TWINE_USERNAME: $PYPI_USERNAME
     TWINE_PASSWORD: $PYPI_PASSWORD
   before_script:
-     - pip install --upgrade twine wheel aedev_setup_project
+     - pip install --upgrade aedev_setup_project pip setuptools twine wheel
      - python setup.py sdist bdist_wheel
   script:
     - twine upload --verbose dist/*

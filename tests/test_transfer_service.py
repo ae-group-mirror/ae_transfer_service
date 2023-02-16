@@ -109,6 +109,7 @@ class TestHelpers:
         assert transfer_kwargs_from_literal("{}") == {}
 
     def test_transfer_service_from_literal_date_time(self):
+        assert transfer_kwargs_from_literal("{'x_date': (1999, 1, 10)}") == dict(x_date=datetime.datetime(1999, 1, 10))
         assert transfer_kwargs_from_literal("{'_date': (1999, 1, 10)}") == dict(_date=datetime.datetime(1999, 1, 10))
 
     def test_transfer_kwargs_literal_basics(self):
@@ -116,6 +117,8 @@ class TestHelpers:
 
     def test_transfer_kwargs_literal_date_time(self):
         test_time = datetime.datetime.now()
+        assert transfer_kwargs_literal(dict(y_time=test_time)) == \
+               "{'y_time': " + str(tuple(test_time.timetuple())[:7]) + "}" + TRANSFER_KWARGS_LINE_END_CHAR
         assert transfer_kwargs_literal(dict(_time=test_time)) == \
                "{'_time': " + str(tuple(test_time.timetuple())[:7]) + "}" + TRANSFER_KWARGS_LINE_END_CHAR
 

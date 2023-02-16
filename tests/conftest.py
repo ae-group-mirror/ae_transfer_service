@@ -1,4 +1,5 @@
-# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev_tpl_project V0.3.4 
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.tpl_project V0.3.25
+# pylint: disable=redefined-outer-name, unused-argument; suppress fixtures conflicts (silly pylint)
 """ fixtures for to test this project """
 import os
 import sys
@@ -32,14 +33,15 @@ def restore_app_env(sys_argv_app_key_restore):
     """ restore app environment after test run - needed for tests instantiating AppBase/ConsoleApp. """
     # LOCAL IMPORT because a portion may not depend-on/use ae.core
     # noinspection PyProtectedMember
-    from ae.core import app_inst_lock, _APP_INSTANCES, _unregister_app_instance
+    # pylint: disable=import-outside-toplevel
+    from ae.core import app_inst_lock, _APP_INSTANCES, _unregister_app_instance     # type: ignore
 
     yield sys_argv_app_key_restore
 
     # added outer list because unregister does _APP_INSTANCES.pop() calls
     # and added inner list because the .keys() 'generator' object is not reversible
     with app_inst_lock:
-        app_keys = list(reversed(list(_APP_INSTANCES.keys())))
+        app_keys = list(_APP_INSTANCES.keys())[::-1]
         for key in app_keys:
             # copied from ae.enaml_app conftest.py (not needed for apps based on ae.kivy_app)
             app_instance = _APP_INSTANCES[key]
@@ -55,33 +57,34 @@ def restore_app_env(sys_argv_app_key_restore):
 def cons_app(restore_app_env):
     """ provide ConsoleApp instance that will be unregistered automatically """
     # LOCAL IMPORT because some portions like e.g. ae_core does not depend/use ae.console
-    from ae.console import ConsoleApp
+    from ae.console import ConsoleApp       # type: ignore # pylint: disable=import-outside-toplevel
     yield ConsoleApp()
 
 
 @pytest.fixture
 def tst_system(cons_app):
     """ CURRENTLY NOT USED """
-    from ae.sys_core import SystemBase
+    # pylint: disable=import-outside-toplevel, no-name-in-module, import-error
+    from ae.sys_core import SystemBase      # type: ignore
     yield SystemBase('Tst', cons_app, dict(User='TstUsr', Password='TstPwd', Dsn='TstDb@TstHost'))
 
 
 def delete_files(file_name, keep_ext=False, ret_type='count'):
     """ clean up test log files and other test files after test run. """
     if keep_ext:
-        fp, fe = os.path.splitext(file_name)
-        file_mask = fp + '*' + fe
+        file_path, file_ext = os.path.splitext(file_name)
+        file_mask = file_path + '*' + file_ext
     else:
         file_mask = file_name + '*'
     cnt = 0
     ret = []
-    for fn in glob.glob(file_mask):
+    for fil_nam in glob.glob(file_mask):
         if ret_type == 'contents':
-            with open(fn) as fd:
-                fc = fd.read()
-            ret.append(fc)
+            with open(fil_nam) as file_handle:        # pylint: disable=unspecified-encoding
+                file_content = file_handle.read()
+            ret.append(file_content)
         elif ret_type == 'names':
-            ret.append(fn)
-        os.remove(fn)
+            ret.append(fil_nam)
+        os.remove(fil_nam)
         cnt += 1
     return cnt if ret_type == 'count' else ret
