@@ -131,7 +131,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.9'
+__version__ = '0.3.10'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -277,7 +277,9 @@ def transfer_kwargs_from_literal(transfer_kwargs_lit: str) -> TransferKwargs:
         lambda dp, key, val:
             datetime.datetime(*val)
             if isinstance(key, str) and any(fragment in key for fragment in TRANSFER_KWARGS_DATE_TIME_NAME_PARTS)
-            else UNSET)
+            else UNSET,
+        key_filter=lambda index_or_attr: False  # allow also kwarg key names with a leading underscore character
+    )
     return transfer_kwargs
 
 
@@ -299,7 +301,9 @@ def transfer_kwargs_literal(transfer_kwargs: TransferKwargs) -> str:
         lambda pd, key, val:
             tuple(val.timetuple())[:7]
             if isinstance(key, str) and any(fragment in key for fragment in TRANSFER_KWARGS_DATE_TIME_NAME_PARTS)
-            else UNSET)
+            else UNSET,
+        key_filter=lambda index_or_attr: False  # allow also kwarg key names with a leading underscore character
+    )
     ret = str(transfer_kwargs).replace(TRANSFER_KWARGS_LINE_END_CHAR, "\\n") + TRANSFER_KWARGS_LINE_END_CHAR
     return ret
 

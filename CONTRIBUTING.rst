@@ -1,6 +1,6 @@
 
 ..
-    THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev_tpl_project V0.3.4 
+    THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.tpl_project V0.3.25
 
 contributing
 ============
@@ -86,8 +86,8 @@ using the git repository manager `grm`
       finally creating a merge/pull request against the ``upstream`` remote repository (the forked one).
 
 
-more detailed information of the features of the ``grm`` tool are available within the `documentation of the aedev
-namespace <https://aedev.readthedocs.io/en/latest/man/git_repo_manager.html>`__.
+more detailed information of the features of the ``grm`` tool are available within `the grm user manual
+<https://aedev.readthedocs.io/en/latest/man/git_repo_manager.html>`__.
 
 
 using `git` and `Gitlab`
@@ -178,6 +178,6 @@ useful links and resources
 
 - `General GitLab documentation <https://docs.gitlab.com/ce/>`__
 - `GitLab workflow documentation <https://docs.gitlab.com/ee/user/project/repository/forking_workflow.html>`__
-- grm (git repository manager)
+- grm (git repository manager) module
   :mod:`project repository <aedev.git_repo_manager>`  and
-  `documentation <https://aedev.readthedocs.io/en/latest/man/git_repo_manager.html>`__
+  `user manual <https://aedev.readthedocs.io/en/latest/man/git_repo_manager.html>`__

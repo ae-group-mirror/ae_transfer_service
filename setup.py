@@ -1,11 +1,11 @@
-# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev_tpl_project V0.3.4 
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.tpl_project V0.3.25
 """ setup this project with setuptools and aedev.setup_project. """
 import pprint
 import sys
 
 import setuptools
 
-from aedev.setup_project import project_env_vars
+from aedev.setup_project import project_env_vars    # type: ignore
 
 pev = project_env_vars(from_setup=True)
 
