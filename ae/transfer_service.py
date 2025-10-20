@@ -78,7 +78,7 @@ send file to another transfer service server
 --------------------------------------------
 
 to send files from one transfer server to another running transfer server, a separate client process has to be
-started on the device storing the file to be send.
+started on the device storing the file to be sent.
 
 to initiate the file transfer the client process has to make a tcp connection to the transfer server running on the
 same device, specifying the path of the file to send and the remote ip of the receiving transfer server and finally call
@@ -122,16 +122,16 @@ import threading
 
 from copy import deepcopy
 from socketserver import StreamRequestHandler, ThreadingTCPServer
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
-from ae.base import DATE_TIME_ISO, UNSET, os_local_ip                                                   # type: ignore
+from ae.base import DATE_TIME_ISO, UNSET, os_local_ip, os_path_isdir, os_path_isfile, os_path_join      # type: ignore
 from ae.files import copy_bytes                                                                         # type: ignore
 from ae.paths import PATH_PLACEHOLDERS, normalize, placeholder_path, series_file_name                   # type: ignore
 from ae.deep import deep_replace                                                                        # type: ignore
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.10'
+__version__ = '0.3.11'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -140,21 +140,21 @@ CONNECT_ERR_PREFIX = "transfer_service.connect_and_request() exception "
 """ error message string prefix if error happened directly in :func:`connect_and_request` helper (no protocol error).
 """
 
-ENCODING_KWARGS = dict(encoding='UTF-8', errors='ignore')   #: default encoding and encoding error handling strategy
+ENCODING_KWARGS = {'encoding': 'UTF-8', 'errors': 'ignore'}  #: default encoding and encoding error handling strategy
 
 SERVER_BIND = ""                    #: setting BIND to '' or None to allow connections for all available interfaces
 SERVER_PORT = 36969                 #: server listening port
 
-SHUTDOWN_TIMEOUT = 3.9              #: timeout (in seconds) to shutdown/stop the console app
+SHUTDOWN_TIMEOUT = 3.9              #: timeout (in seconds) to quit/stop the console app
 
 SOCKET_BUF_LEN = 16 * 1024          #: buf length for socket receives and sends
 
 TRANSFER_KWARGS_DATE_TIME_NAME_PARTS = ('_date', '_time')   #: kwarg name suffix for values automatically converted
 TRANSFER_KWARGS_LINE_END_CHAR = "\n"                        #: end of line/command character as string
-TRANSFER_KWARGS_LINE_END_BYTE = bytes(TRANSFER_KWARGS_LINE_END_CHAR, **ENCODING_KWARGS)     #: .. and as byte value
+TRANSFER_KWARGS_LINE_END_BYTE = bytes(TRANSFER_KWARGS_LINE_END_CHAR, **ENCODING_KWARGS)     #: and as byte value
 
-# InetAddress = Tuple[str, int]     #: for socket.connect / server.bind
-TransferKwargs = Dict[str, Any]     #: command/action format of requests and responses
+# InetAddress = tuple[str, int]     #: for socket.connect / server.bind
+TransferKwargs = dict[str, Any]     #: command/action format of requests and responses
 
 
 requests_lock = threading.Lock()    #: locking requests TransferKwargs in :attr:`TransferServiceApp.reqs_and_logs`
@@ -194,7 +194,8 @@ def connect_and_request(sock: socket.socket, request_kwargs: TransferKwargs,
     """
     if 'local_ip' not in request_kwargs:
         request_kwargs['local_ip'] = os_local_ip()
-    server_app and server_app.vpo(f"transfer_service.connect_and_request(): timeout={timeout} req={request_kwargs}")
+    if server_app:
+        server_app.vpo(f"transfer_service.connect_and_request(): timeout={timeout} req={request_kwargs}")
 
     try:
         sock.settimeout(timeout)
@@ -202,6 +203,7 @@ def connect_and_request(sock: socket.socket, request_kwargs: TransferKwargs,
         sock.sendall(bytes(transfer_kwargs_literal(request_kwargs), **ENCODING_KWARGS))
         response_lit = str(recv_bytes(sock, buf_len=buf_len), **ENCODING_KWARGS)[:-1]
         return transfer_kwargs_from_literal(response_lit)
+    # pylint: disable=broad-exception-caught
     except (Exception, IOError, OSError, SyntaxError, ValueError) as ex:
         request_kwargs['error'] = CONNECT_ERR_PREFIX + f"{ex} processing received request {request_kwargs}"
         return request_kwargs
@@ -218,18 +220,22 @@ def recv_bytes(sock: socket.socket, buf_len: int = SOCKET_BUF_LEN) -> bytes:
     pre = "transfer_service.recv_bytes()"
     if not buf_len:
         buf_len = server_app.get_opt('buf_len') if server_app else SOCKET_BUF_LEN
-    server_app and server_app.vpo(f"{pre}: sock={sock} buf_len={buf_len} ... waiting for receive")
+    if server_app:
+        server_app.vpo(f"{pre}: sock={sock} buf_len={buf_len} ... waiting for receive")
     buf = b""
     while True:
         chunk = sock.recv(buf_len)
-        server_app and server_app.vpo(f"{pre}: received {len(chunk)} bytes chunk=({clean_log_str(chunk)}); sock={sock}")
+        if server_app:
+            server_app.vpo(f"{pre}: received {len(chunk)} bytes chunk=({clean_log_str(chunk)}); sock={sock}")
         buf += chunk
         if buf[-1:] == TRANSFER_KWARGS_LINE_END_BYTE:
-            server_app and server_app.vpo(f"{pre}: received end-of-line-char from socket {sock}")
+            if server_app:
+                server_app.vpo(f"{pre}: received end-of-line-char from socket {sock}")
             break
         if not chunk:   # pragma: no cover
-            server_app and server_app.vpo(f"{pre}: received empty chunk from socket {sock}")
-            buf = bytes(transfer_kwargs_literal(dict(error=f"{pre}: empty chunk error")), **ENCODING_KWARGS)
+            if server_app:
+                server_app.vpo(f"{pre}: received empty chunk from socket {sock}")
+            buf = bytes(transfer_kwargs_literal({'error': f"{pre}: empty chunk error"}), **ENCODING_KWARGS)
             break
     return buf
 
@@ -237,15 +243,15 @@ def recv_bytes(sock: socket.socket, buf_len: int = SOCKET_BUF_LEN) -> bytes:
 def service_factory(task_id_func: Optional[Callable[[str, str, str], str]] = None) -> 'TransferServiceApp':
     """ create server app instance including the command line options `bind` and `port`.
 
-    :param task_id_func:        callable to return an unique id for a transfer request task.
+    :param task_id_func:        callable to return a unique id for a transfer request task.
     :return:                    transfer service app instance.
     """
-    global server_app           #: singleton server instance
+    global server_app           # pylint: disable=global-statement #: singleton server instance
 
     server_app = TransferServiceApp(app_name='transfer_service', multi_threading=True, disable_buffering=True)
-    server_app.add_option('bind', "server bind address", SERVER_BIND, 'b')
-    server_app.add_option('port', "server listening port", SERVER_PORT, 'p')
-    server_app.add_option('buf_len', "socket buffer length", SOCKET_BUF_LEN, 'l')
+    server_app.add_option('bind', "server bind address", SERVER_BIND, short_opt='b')
+    server_app.add_option('port', "server listening port", SERVER_PORT, short_opt='p')
+    server_app.add_option('buf_len', "socket buffer length", SOCKET_BUF_LEN, short_opt='l')
 
     if task_id_func:
         # noinspection PyTypeHints
@@ -314,10 +320,9 @@ def transfer_kwargs_update(*variables, **kwargs):
     :param variables:           transfer kwargs variables/dicts.
     :param kwargs:              kwargs to update.
     """
-    requests_lock.acquire()
-    for var in variables:
-        var.update(**kwargs)
-    requests_lock.release()
+    with requests_lock:  # .acquire()/.release()
+        for var in variables:
+            var.update(**kwargs)
 
 
 class ThreadedTCPRequestHandler(StreamRequestHandler):
@@ -335,13 +340,13 @@ class ThreadedTCPRequestHandler(StreamRequestHandler):
             response_lit = server_app.response_to_request(request_lit, self)
             server_app.vpo(f"{pre}response len={len(response_lit)}; res={clean_log_str(response_lit)}")
             self.wfile.write(bytes(response_lit, **ENCODING_KWARGS))
-        except (IOError, OSError, Exception) as ex:
+        except (IOError, OSError, Exception) as ex:     # pylint: disable=broad-exception-caught
             server_app.log('print', f"{pre}error: {ex}")
 
 
 class TransferServiceApp(ConsoleApp):
     """ server service app class """
-    reqs_and_logs: List[TransferKwargs]                 #: list of transfer_kwargs of currently processed requests
+    reqs_and_logs: list[TransferKwargs]                 #: list of transfer_kwargs of currently processed requests
     server_instance: Optional[ThreadingTCPServer]       #: server class instance
     server_thread: Optional[threading.Thread]           #: server thread (main or separate thread)
 
@@ -358,15 +363,14 @@ class TransferServiceApp(ConsoleApp):
         self.log('debug', f"{pre}: {msg}")
 
         response_kwargs = request_kwargs.copy()
-        requests_lock.acquire()
-        for req in self.reqs_and_logs:
-            if req['rt_id'] == rt_id_to_cancel:
-                req['error'] = msg + " cancelled"
-                request_kwargs['completed'] = True
-                break
-        else:
-            response_kwargs['error'] = msg + " not found/cancelled"
-        requests_lock.release()
+        with requests_lock:     # .acquire()/.release()
+            for req in self.reqs_and_logs:
+                if req['rt_id'] == rt_id_to_cancel:
+                    req['error'] = msg + " cancelled"
+                    request_kwargs['completed'] = True
+                    break
+            else:
+                response_kwargs['error'] = msg + " not found/cancelled"
 
         return response_kwargs
 
@@ -392,7 +396,7 @@ class TransferServiceApp(ConsoleApp):
             :meth:`~TransferServiceApp.response_to_request`, :meth:`~ThreadedTCPRequestHandler.handle` or
             :func:`recv_bytes`). this will prevent the duplication of a log message, because each call of this method
             creates a new entry in :attr:`~TransferServiceApp.reqs_and_logs` which will be sent to the controlling app
-            via the low level transport methods (which would recursively grow the sent messages until the system
+            via the low level transport methods (which would recursively grow the messages sent until the system
             freezes), especially if the transfer kwargs are included into the log message.
 
         :param log_level:       'print' always prints, 'debug' prints if self.debug, 'verbose' prints if self.verbose.
@@ -405,11 +409,10 @@ class TransferServiceApp(ConsoleApp):
         if getattr(self, log_level, True) and hasattr(self, 'reqs_and_logs'):
             log_time = datetime.datetime.now()
 
-            requests_lock.acquire()
-            self.reqs_and_logs.append(dict(
-                method_name=log_level + '_' + 'log', message=message, completed=True,
-                log_time=log_time, rt_id=self.id_of_task(log_level, 'log', log_time.strftime(DATE_TIME_ISO))))
-            requests_lock.release()
+            with requests_lock:  # .acquire()/.release()
+                self.reqs_and_logs.append({
+                    'method_name': log_level + '_' + 'log', 'message': message, 'completed': True, 'log_time': log_time,
+                    'rt_id': self.id_of_task(log_level, 'log', log_time.strftime(DATE_TIME_ISO))})
 
     def pending_requests(self, request_kwargs: TransferKwargs, handler: StreamRequestHandler) -> TransferKwargs:
         """ determine currently running/pending server requests and debug log messages (in debug mode only).
@@ -420,15 +423,12 @@ class TransferServiceApp(ConsoleApp):
         """
         self.vpo(f"TransferServiceApp.pending_requests {request_kwargs} from {handler.client_address}")
 
-        requests_lock.acquire()
+        with requests_lock:     # .acquire()/.release()
+            # copy all log messages and pending transfer requests (the pending_requests get not added to reqs_and_logs)
+            request_kwargs['pending_requests'] = self.reqs_and_logs.copy()
 
-        # copy all log messages and pending transfer requests (the pending_requests get not added to reqs_and_logs)
-        request_kwargs['pending_requests'] = self.reqs_and_logs.copy()
-
-        # remove completed transfers, cancellations, errors and debug log messages (just passed to the controlling app)
-        self.reqs_and_logs[:] = [_ for _ in self.reqs_and_logs if 'completed' not in _ and 'error' not in _]
-
-        requests_lock.release()
+            # remove completed transfers/cancel/errors/debug log messages (just passed to the controlling app)
+            self.reqs_and_logs[:] = [_ for _ in self.reqs_and_logs if 'completed' not in _ and 'error' not in _]
 
         return request_kwargs
 
@@ -459,7 +459,7 @@ class TransferServiceApp(ConsoleApp):
         file_folder, file_name = os.path.split(file_path)
         if not os.path.exists(file_folder):
             file_folder = PATH_PLACEHOLDERS['downloads']
-        recv_file = os.path.join(file_folder, file_name)
+        recv_file = os_path_join(file_folder, file_name)
         if request_kwargs.get('series_file'):
             recv_file = request_kwargs['series_file_name'] = series_file_name(recv_file)
         file_length = request_kwargs['total_bytes']
@@ -470,12 +470,12 @@ class TransferServiceApp(ConsoleApp):
         if not recv_file or not file_length:
             request_kwargs['error'] = f"{pre} called without file name/length arguments"
             return request_kwargs
-        if not os.path.exists(recv_file):
-            start_offset = 0
-        elif not os.path.isfile(recv_file):
-            request_kwargs['error'] = f"{pre} destination {recv_file} is not a file"
+        if os_path_isdir(recv_file):
+            request_kwargs['error'] = f"{pre} destination 'file' ({recv_file}) is a folder"
             return request_kwargs
-        else:
+
+        start_offset = 0
+        if os_path_isfile(recv_file):
             with open(recv_file, 'ab+') as file_handle:
                 file_handle.seek(0, 2)
                 start_offset = file_handle.tell()  # ==os.fstat(...).st_size; tell() faster: EOF seek anyway needed
@@ -502,7 +502,7 @@ class TransferServiceApp(ConsoleApp):
             transfer_kwargs_update(request_kwargs, response_kwargs, **kwargs)
             return ""
 
-        errors: List[str] = []
+        errors: list[str] = []
         copy_bytes(handler.rfile, recv_file, total_bytes=file_length, transferred_bytes=start_offset,
                    buf_size=self.get_opt('buf_len'), recoverable=True, errors=errors, progress_func=_progress)
         if errors:
@@ -537,15 +537,14 @@ class TransferServiceApp(ConsoleApp):
             request_kwargs = transfer_kwargs_from_literal(request_lit)
         except (KeyError, SyntaxError, ValueError) as ex:
             self.po(f"{pre} exception {ex} on eval of request literal {request_lit[:180]}...")
-            response_kwargs = dict(error=f"{pre} exception='{ex}' in parsing the request literal '{request_lit}'")
+            response_kwargs = {'error': f"{pre} exception='{ex}' in parsing the request literal '{request_lit}'"}
         else:
             response_kwargs = {}        # default response if exception get raised
             method_name = request_kwargs['method_name']
             try:
                 if method_name != 'pending_requests':
-                    requests_lock.acquire()
-                    self.reqs_and_logs.append(request_kwargs)               # removed in pending_requests()
-                    requests_lock.release()
+                    with requests_lock:  # .acquire()/.release()
+                        self.reqs_and_logs.append(request_kwargs)           # removed in pending_requests()
 
                 response_kwargs = getattr(self, method_name)(request_kwargs, handler)
                 if not response_kwargs:
@@ -557,12 +556,12 @@ class TransferServiceApp(ConsoleApp):
                     transfer_kwargs_error(response_kwargs, request_kwargs['error'])
                 elif 'transferred_bytes' in response_kwargs:                # update pending requests progress
                     transferred = response_kwargs['transferred_bytes']
-                    requests_lock.acquire()
-                    if transferred and transferred == request_kwargs.get('total_bytes', 0):
-                        request_kwargs['transferred_bytes'] = transferred
-                        request_kwargs['completed'] = True
-                    requests_lock.release()
+                    with requests_lock:  # .acquire()/.release()
+                        if transferred and transferred == request_kwargs.get('total_bytes', 0):
+                            request_kwargs['transferred_bytes'] = transferred
+                            request_kwargs['completed'] = True
 
+            # pylint: disable=broad-exception-caught
             except (KeyError, IOError, OSError, SyntaxError, ValueError, Exception) as ex:
                 self.log('print', f"{pre} {method_name} exception {ex}; req={request_kwargs}; res={response_kwargs}")
                 if not response_kwargs:
@@ -571,6 +570,7 @@ class TransferServiceApp(ConsoleApp):
 
         return transfer_kwargs_literal(response_kwargs)
 
+    # pylint: disable=too-many-locals
     def send_file(self, request_kwargs: TransferKwargs, handler: StreamRequestHandler) -> TransferKwargs:
         """ send binary file content to remote server. """
         pre = "TransferServiceApp.send_file()"
@@ -594,11 +594,10 @@ class TransferServiceApp(ConsoleApp):
         file_path = placeholder_path(request_kwargs['file_path'])
         local_ip = request_kwargs['local_ip']
         remote_ip = request_kwargs['remote_ip']
-        recv_kwargs = dict(method_name='recv_file', file_path=file_path,
-                           transferred_bytes=0, total_bytes=request_kwargs['total_bytes'],
-                           remote_ip=remote_ip, local_ip=local_ip,
-                           server_address=(remote_ip, SERVER_PORT),
-                           rt_id=self.id_of_task('recv', 'file', file_path + '@' + local_ip))
+        recv_kwargs = {'method_name': 'recv_file', 'file_path': file_path, 'transferred_bytes': 0,
+                       'total_bytes': request_kwargs['total_bytes'], 'remote_ip': remote_ip, 'local_ip': local_ip,
+                       'server_address': (remote_ip, SERVER_PORT),
+                       'rt_id': self.id_of_task('recv', 'file', file_path + '@' + local_ip)}
         if remote_ip == local_ip:
             recv_kwargs['series_file'] = True   # create duplicate for debugging and testing
         with socket.socket() as sock:           # use socket default args: socket.AF_INET, socket.SOCK_STREAM
@@ -607,9 +606,8 @@ class TransferServiceApp(ConsoleApp):
             if 'error' in response_kwargs:
                 return response_kwargs
 
-            requests_lock.acquire()
-            offset = request_kwargs['transferred_bytes'] = response_kwargs['transferred_bytes']
-            requests_lock.release()
+            with requests_lock:  # .acquire()/.release()
+                offset = request_kwargs['transferred_bytes'] = response_kwargs['transferred_bytes']
             if offset:      # pragma: no cover
                 self.log('debug', f"{pre} recovering interrupted transfer at offset {offset}")
                 content = content[offset:]
@@ -630,11 +628,10 @@ class TransferServiceApp(ConsoleApp):
         pre = "TransferServiceApp.send_message()"
         self.log('debug', f"{pre} {request_kwargs} on behalf of {handler.client_address}")
 
-        requests_lock.acquire()
-        msg = request_kwargs['message']
-        request_kwargs['total_bytes'] = len(msg)
-        request_kwargs['transferred_bytes'] = 0
-        requests_lock.release()
+        with requests_lock:     # .acquire()/.release()
+            msg = request_kwargs['message']
+            request_kwargs['total_bytes'] = len(msg)
+            request_kwargs['transferred_bytes'] = 0
 
         recv_kwargs = request_kwargs.copy()
         recv_kwargs['method_name'] = 'recv_message'
@@ -676,6 +673,7 @@ class TransferServiceApp(ConsoleApp):
         try:
             server_address = (self.get_opt('bind'), self.get_opt('port'))
             ThreadingTCPServer.allow_reuse_address = True   # patching class: https://stackoverflow.com/a/15278302/90580
+            # noinspection PyTypeChecker
             self.server_instance = ThreadingTCPServer(server_address, ThreadedTCPRequestHandler)
 
             self.log('verbose', f"{pre}: (ip,port)={server_address}/{self.server_instance.server_address}")
@@ -691,7 +689,7 @@ class TransferServiceApp(ConsoleApp):
                 self.server_thread = tct
                 self.server_instance.serve_forever()
 
-        except (IOError, OSError, Exception) as ex:
+        except (IOError, OSError, Exception) as ex:     # pylint: disable=broad-exception-caught
             err_msg = f"{pre}: exception {ex}"
             self.log('print', err_msg)
             self.server_instance = self.server_thread = None
