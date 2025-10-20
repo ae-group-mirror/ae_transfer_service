@@ -87,7 +87,8 @@ the remote procedure `send_file` like shown in the following example::
     import socket
     from ae.transfer_service import connect_and_request
 
-    request_kwargs = dict(method_name='send_file', file_path='path_to_file/file_name.ext', remote_ip='192.168.3.123')
+    request_kwargs = {'method_name': 'send_file', 'file_path': 'path_to/file_name.ext', 'remote_ip': '192.168.3.123'}
+
     with socket.socket() as sock:
         response_kwargs = connect_and_request(sock, request_kwargs)
 
@@ -124,14 +125,15 @@ from copy import deepcopy
 from socketserver import StreamRequestHandler, ThreadingTCPServer
 from typing import Any, Callable, Optional, Union
 
-from ae.base import DATE_TIME_ISO, UNSET, os_local_ip, os_path_isdir, os_path_isfile, os_path_join      # type: ignore
+from ae.base import (                                                                                   # type: ignore
+    DATE_TIME_ISO, UNSET, norm_path, os_local_ip, os_path_isdir, os_path_isfile, os_path_join)
 from ae.files import copy_bytes                                                                         # type: ignore
 from ae.paths import PATH_PLACEHOLDERS, normalize, placeholder_path, series_file_name                   # type: ignore
 from ae.deep import deep_replace                                                                        # type: ignore
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.11'
+__version__ = '0.3.12'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -458,8 +460,8 @@ class TransferServiceApp(ConsoleApp):
         file_path = normalize(request_kwargs['file_path'], make_absolute=False, resolve_sym_links=False)
         file_folder, file_name = os.path.split(file_path)
         if not os.path.exists(file_folder):
-            file_folder = PATH_PLACEHOLDERS['downloads']
-        recv_file = os_path_join(file_folder, file_name)
+            file_folder = PATH_PLACEHOLDERS.get('downloads', ".")  # fallback to Downloads-dir|CWD if folder not exists
+        recv_file = norm_path(os_path_join(file_folder, file_name))
         if request_kwargs.get('series_file'):
             recv_file = request_kwargs['series_file_name'] = series_file_name(recv_file)
         file_length = request_kwargs['total_bytes']
