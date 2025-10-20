@@ -1,4 +1,4 @@
-# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.tpl_project V0.3.25
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.project_tpls v0.3.58
 # pylint: disable=redefined-outer-name, unused-argument; suppress fixtures conflicts (silly pylint)
 """ fixtures for to test this project """
 import os
@@ -43,7 +43,7 @@ def restore_app_env(sys_argv_app_key_restore):
     with app_inst_lock:
         app_keys = list(_APP_INSTANCES.keys())[::-1]
         for key in app_keys:
-            # copied from ae.enaml_app conftest.py (not needed for apps based on ae.kivy_app)
+            # copied from ae.enaml_app conftest.py (not needed for apps based on ae.kivy)
             app_instance = _APP_INSTANCES[key]
             app_win = getattr(app_instance, 'framework_win', False)
             if app_win and hasattr(app_win, 'close') and callable(app_win.close):

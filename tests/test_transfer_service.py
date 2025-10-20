@@ -1,14 +1,13 @@
 """ transfer service unit tests. """
 import datetime
-import glob
 import os
 import pytest
 import threading
-import time
+
 from socket import socket
 from unittest.mock import MagicMock
 
-from ae.base import TESTS_FOLDER, os_local_ip
+from ae.base import os_local_ip, os_path_isfile, os_path_join, write_file
 from ae.console import ConsoleApp
 from ae.files import read_file_text, write_file_text
 from ae.paths import PATH_PLACEHOLDERS
@@ -117,8 +116,10 @@ class TestHelpers:
 
     def test_transfer_kwargs_literal_date_time(self):
         test_time = datetime.datetime.now()
+        # noinspection PyTypeChecker
         assert transfer_kwargs_literal(dict(y_time=test_time)) == \
                "{'y_time': " + str(tuple(test_time.timetuple())[:7]) + "}" + TRANSFER_KWARGS_LINE_END_CHAR
+        # noinspection PyTypeChecker
         assert transfer_kwargs_literal(dict(_time=test_time)) == \
                "{'_time': " + str(tuple(test_time.timetuple())[:7]) + "}" + TRANSFER_KWARGS_LINE_END_CHAR
 
@@ -181,17 +182,57 @@ class TestTransferServiceApp:
 
         msg = "message"
         threaded_server.log('tst', msg)
-        assert called
+        assert len(called) > 0
+        # noinspection PyTypeChecker
         assert msg in called[0]
 
-    def test_log_append(self, threaded_server):
-        rt_id_part = "ijk"
+    def test_log_append(self, capsys, threaded_server):
+        rt_id_part = "any_but_'print'_'debug'_or_'verbose'"
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
-        threaded_server.log(rt_id_part, "message")
-        assert len(threaded_server.reqs_and_logs) == 2 if threaded_server.debug else 1
+        log_len = len(threaded_server.reqs_and_logs)
+
+        threaded_server.log(rt_id_part, 'any tst message to be added to the log')
+
+        out, err = capsys.readouterr()
+        assert 'any tst message to be added to the log' not in out
+        assert len(threaded_server.reqs_and_logs) == log_len + 1
         req = threaded_server.reqs_and_logs[-1]
         assert req['method_name'] == rt_id_part + "_log"
-        assert req['message'] == "message"
+        assert req['message'] == 'any tst message to be added to the log'
+        assert req['completed'] is True
+        assert req['log_time']
+        assert rt_id_part in req['rt_id']
+
+    def test_log_append_print(self, capsys, threaded_server):
+        rt_id_part = 'print'
+        assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
+        log_len = len(threaded_server.reqs_and_logs)
+
+        threaded_server.log(rt_id_part, 'any tst message to be added to the log')
+
+        out, err = capsys.readouterr()
+        assert 'any tst message to be added to the log' in out
+        assert len(threaded_server.reqs_and_logs) == log_len + 1
+        req = threaded_server.reqs_and_logs[-1]
+        assert req['method_name'] == rt_id_part + "_log"
+        assert req['message'] == 'any tst message to be added to the log'
+        assert req['completed'] is True
+        assert req['log_time']
+        assert rt_id_part in req['rt_id']
+
+    def test_log_append_verbose(self, capsys, threaded_server):
+        rt_id_part = 'verbose'
+        assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
+        log_len = len(threaded_server.reqs_and_logs)
+
+        threaded_server.log(rt_id_part, 'any tst message to be added to the log')
+
+        out, err = capsys.readouterr()
+        assert 'any tst message to be added to the log' in out
+        assert len(threaded_server.reqs_and_logs) == log_len + 1
+        req = threaded_server.reqs_and_logs[-1]
+        assert req['method_name'] == rt_id_part + "_log"
+        assert req['message'] == 'any tst message to be added to the log'
         assert req['completed'] is True
         assert req['log_time']
         assert rt_id_part in req['rt_id']
@@ -229,43 +270,42 @@ class TestTransferServiceApp:
 
     def test_recv_file_not_found(self, threaded_server):
         req = dict(file_path="not_exists.tst", total_bytes=333)
-        PATH_PLACEHOLDERS['downloads'] = 'downloads_path'
         res = threaded_server.recv_file(req, MagicMock())
         assert 'error' in res
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
 
     def test_recv_file_zero_len(self, threaded_server):
         req = dict(file_path="not_exists.xxx", total_bytes=0)
-        PATH_PLACEHOLDERS['downloads'] = TESTS_FOLDER
         res = threaded_server.recv_file(req, MagicMock())
         assert 'error' in res
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
 
-    def test_recv_file_series(self, threaded_server):
-        file_name = "tests/conftest.py"
+    def test_recv_file_series(self, threaded_server, tmp_path):
+        PATH_PLACEHOLDERS['downloads'] = str(tmp_path)
+        file_name = os_path_join(str(tmp_path), 'recv_file_series.tst')
+        write_file(file_name, "any file content")
         with open(file_name, 'rb') as fp:
-            req = dict(file_path="conftest.py", total_bytes=os.fstat(fp.fileno()).st_size, series_file=True)
-            PATH_PLACEHOLDERS['downloads'] = TESTS_FOLDER
+            req = dict(file_path='recv_file_series.tst', total_bytes=os.fstat(fp.fileno()).st_size, series_file=True)
             handler = MagicMock()
             handler.rfile = fp
             res = threaded_server.recv_file(req, handler)
         assert 'error' not in res
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
-        assert os.path.exists(res['series_file_name'])
+        assert os_path_isfile(res['series_file_name'])
         assert read_file_text(file_name) == read_file_text(res['series_file_name'])
-        os.remove(res['series_file_name'])
 
-    def test_recv_file_folder_no_file(self, threaded_server):
-        req = dict(file_path="tests", total_bytes=333)
-        PATH_PLACEHOLDERS['downloads'] = '.'
+    def test_recv_file_folder_no_file(self, threaded_server, tmp_path):
+        req = dict(file_path=str(tmp_path), total_bytes=333)
         res = threaded_server.recv_file(req, MagicMock())
         assert 'error' in res
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
 
-    def test_recv_file(self, threaded_server):
-        with open("tests/conftest.py", 'rb') as fp:
-            req = dict(file_path="conftest.py", total_bytes=os.fstat(fp.fileno()).st_size)
-            PATH_PLACEHOLDERS['downloads'] = TESTS_FOLDER
+    def test_recv_file(self, threaded_server, tmp_path):
+        PATH_PLACEHOLDERS['downloads'] = str(tmp_path)
+        tst_fil = os_path_join(str(tmp_path), 'recv_file_tst.file')
+        write_file(tst_fil, "any file content")
+        with open(tst_fil, 'rb') as fp:
+            req = dict(file_path='recv_file_tst.file', total_bytes=os.fstat(fp.fileno()).st_size)
             handler = MagicMock()
             handler.rfile = fp
             res = threaded_server.recv_file(req, handler)
@@ -331,30 +371,30 @@ class TestTransferServiceApp:
         assert threaded_server.reqs_and_logs[-1]['error'] == "res_error"
         assert res['error'] == "res_error"
 
-    def test_send_file(self, threaded_server):
-        file_content = "content"
+    def test_send_file(self, threaded_server, tmp_path):
+        PATH_PLACEHOLDERS['downloads'] = str(tmp_path)
+        file_content = "send file test content"
         file_len = len(file_content)
-        file_path = "tests/send_test.test"
+        file_path = os_path_join(str(tmp_path), 'send_file.test')
         write_file_text(file_content, file_path)
         req = dict(file_path=file_path, local_ip=os_local_ip(), remote_ip=os_local_ip(), total_bytes=file_len)
         res = threaded_server.send_file(req, MagicMock())
         assert 'transferred_bytes' in res
         assert res['transferred_bytes'] == file_len
-        assert res['file_path'] == '{downloads}/send_test.test'  # != file_path
+        assert res['file_path'] == os_path_join('{downloads}', 'send_file.test')  # != file_path
         assert 'error' not in res
-        time.sleep(3.0)
-        for file_name in glob.glob("tests/send_test*.test"):
-            os.remove(file_name)
 
-    def test_send_file_already_transferred(self, threaded_server):
-        file_path = "tests/conftest.py"
+    def test_send_file_already_transferred(self, threaded_server, tmp_path):
+        PATH_PLACEHOLDERS['downloads'] = str(tmp_path)
+        file_path = os_path_join(str(tmp_path), 'already_sent_test.test')
+        write_file(file_path, "content of\nan already transferred file\n\n\n")
         with open(file_path, 'rb') as fp:
             file_len = os.fstat(fp.fileno()).st_size
         req = dict(file_path=file_path, local_ip=os_local_ip(), remote_ip='localhost', total_bytes=file_len)
         res = threaded_server.send_file(req, MagicMock())
         assert 'transferred_bytes' in res
         assert res['transferred_bytes']
-        assert res['file_path'] == '{downloads}/conftest.py'  # file_path
+        assert res['file_path'] == os_path_join('{downloads}', 'already_sent_test.test')  # file_path
         assert 'error' in res
 
     def test_send_file_not_existing(self, threaded_server):
@@ -364,16 +404,15 @@ class TestTransferServiceApp:
         assert 'transferred_bytes' not in res
         assert 'error' in res
 
-    def test_send_file_empty(self, threaded_server):
-        file_path = "tests/test_send_file.zzz"
+    def test_send_file_empty(self, threaded_server, tmp_path):
+        file_path = os_path_join(str(tmp_path), 'test_send_file.zzz')
         write_file_text("", file_path)
         req = dict(file_path=file_path, local_ip=os_local_ip(), remote_ip='localhost', total_bytes=0)
         res = threaded_server.send_file(req, MagicMock())
         assert 'transferred_bytes' in res
         assert not res['transferred_bytes']
         assert 'error' in res
-        assert os.path.exists(file_path)
-        os.remove(file_path)
+        assert os_path_isfile(file_path)
 
     def test_send_message(self, threaded_server):
         msg = "message"
