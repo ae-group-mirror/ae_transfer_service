@@ -56,7 +56,7 @@ class TestHelpers:
 
     def test_connect_and_request_server_running(self, threaded_server):
         with socket() as sock:
-            res = connect_and_request(sock, dict(method_name='pending_requests'))
+            res = connect_and_request(sock, {'method_name': 'pending_requests'})
         assert 'local_ip' in res
         assert res['local_ip'] == os_local_ip()
         assert 'pending_requests' in res
@@ -70,7 +70,7 @@ class TestHelpers:
     def test_recv_bytes_server_running(self, threaded_server):
         with socket() as sock:
             sock.connect(('localhost', SERVER_PORT))
-            sock.sendall(bytes(transfer_kwargs_literal(dict(method_name='pending_requests')), **ENCODING_KWARGS))
+            sock.sendall(bytes(transfer_kwargs_literal({'method_name': 'pending_requests'}), **ENCODING_KWARGS))
             res = recv_bytes(sock)
             assert res[-1:] == TRANSFER_KWARGS_LINE_END_BYTE
             res = str(res, **ENCODING_KWARGS)
@@ -108,8 +108,8 @@ class TestHelpers:
         assert transfer_kwargs_from_literal("{}") == {}
 
     def test_transfer_service_from_literal_date_time(self):
-        assert transfer_kwargs_from_literal("{'x_date': (1999, 1, 10)}") == dict(x_date=datetime.datetime(1999, 1, 10))
-        assert transfer_kwargs_from_literal("{'_date': (1999, 1, 10)}") == dict(_date=datetime.datetime(1999, 1, 10))
+        assert transfer_kwargs_from_literal("{'x_date': (1999, 1, 10)}") == {'x_date': datetime.datetime(1999, 1, 10)}
+        assert transfer_kwargs_from_literal("{'_date': (1999, 1, 10)}") == {'_date': datetime.datetime(1999, 1, 10)}
 
     def test_transfer_kwargs_literal_basics(self):
         assert transfer_kwargs_literal({}) == "{}" + TRANSFER_KWARGS_LINE_END_CHAR
@@ -117,10 +117,10 @@ class TestHelpers:
     def test_transfer_kwargs_literal_date_time(self):
         test_time = datetime.datetime.now()
         # noinspection PyTypeChecker
-        assert transfer_kwargs_literal(dict(y_time=test_time)) == \
+        assert transfer_kwargs_literal({'y_time': test_time}) == \
                "{'y_time': " + str(tuple(test_time.timetuple())[:7]) + "}" + TRANSFER_KWARGS_LINE_END_CHAR
         # noinspection PyTypeChecker
-        assert transfer_kwargs_literal(dict(_time=test_time)) == \
+        assert transfer_kwargs_literal({'_time': test_time}) == \
                "{'_time': " + str(tuple(test_time.timetuple())[:7]) + "}" + TRANSFER_KWARGS_LINE_END_CHAR
 
     def test_transfer_kwargs_update(self):
@@ -145,8 +145,8 @@ class TestThreadedTCPRequestHandler:
 class TestTransferServiceApp:
     def test_cancel_request(self, threaded_server):
         rt_id = "rt_id"
-        threaded_server.reqs_and_logs.append(dict(rt_id=rt_id))
-        req = dict(rt_id_to_cancel=rt_id)
+        threaded_server.reqs_and_logs.append({'rt_id': rt_id})
+        req = {'rt_id_to_cancel': rt_id}
         res = threaded_server.cancel_request(req, MagicMock())
         assert 'error' not in res
         assert threaded_server.reqs_and_logs
@@ -157,8 +157,8 @@ class TestTransferServiceApp:
 
     def test_cancel_request_error(self, threaded_server):
         rt_id = "rt_id"
-        threaded_server.reqs_and_logs.append(dict(rt_id=rt_id))
-        req = dict(rt_id_to_cancel=rt_id + " to make it fail")
+        threaded_server.reqs_and_logs.append({'rt_id': rt_id})
+        req = {'rt_id_to_cancel': rt_id + " to make it fail"}
         res = threaded_server.cancel_request(req, MagicMock())
         assert 'error' in res
         assert threaded_server.reqs_and_logs
@@ -239,7 +239,7 @@ class TestTransferServiceApp:
 
     def test_pending_requests(self, threaded_server):
         rt_id = "rt_id"
-        rt_req = dict(rt_id=rt_id)
+        rt_req = {'rt_id': rt_id}
         threaded_server.reqs_and_logs.append(rt_req)
         req = {}
         res = threaded_server.pending_requests(req, MagicMock())
@@ -250,7 +250,7 @@ class TestTransferServiceApp:
 
     def test_pending_requests_with_error_removed(self, threaded_server):
         rt_id = "rt_id"
-        rt_req = dict(rt_id=rt_id, error="error")
+        rt_req = {'rt_id': rt_id, 'error': "error"}
         threaded_server.reqs_and_logs.append(rt_req)
         req = {}
         res = threaded_server.pending_requests(req, MagicMock())
@@ -260,7 +260,7 @@ class TestTransferServiceApp:
 
     def test_pending_requests_with_completed_removed(self, threaded_server):
         rt_id = "rt_id"
-        rt_req = dict(rt_id=rt_id, completed=True)
+        rt_req = {'rt_id': rt_id, 'completed': True}
         threaded_server.reqs_and_logs.append(rt_req)
         req = {}
         res = threaded_server.pending_requests(req, MagicMock())
@@ -269,13 +269,14 @@ class TestTransferServiceApp:
         assert res['pending_requests'][-1] == rt_req
 
     def test_recv_file_not_found(self, threaded_server):
-        req = dict(file_path="not_exists.tst", total_bytes=333)
+
+        req = {'file_path': "not_exists.tst", 'total_bytes': 333}
         res = threaded_server.recv_file(req, MagicMock())
         assert 'error' in res
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
 
     def test_recv_file_zero_len(self, threaded_server):
-        req = dict(file_path="not_exists.xxx", total_bytes=0)
+        req = {'file_path': "not_exists.xxx", 'total_bytes': 0}
         res = threaded_server.recv_file(req, MagicMock())
         assert 'error' in res
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
@@ -285,7 +286,8 @@ class TestTransferServiceApp:
         file_name = os_path_join(str(tmp_path), 'recv_file_series.tst')
         write_file(file_name, "any file content")
         with open(file_name, 'rb') as fp:
-            req = dict(file_path='recv_file_series.tst', total_bytes=os.fstat(fp.fileno()).st_size, series_file=True)
+            req = {'file_path': 'recv_file_series.tst', 'total_bytes': os.fstat(fp.fileno()).st_size,
+                   'series_file': True}
             handler = MagicMock()
             handler.rfile = fp
             res = threaded_server.recv_file(req, handler)
@@ -295,7 +297,7 @@ class TestTransferServiceApp:
         assert read_file_text(file_name) == read_file_text(res['series_file_name'])
 
     def test_recv_file_folder_no_file(self, threaded_server, tmp_path):
-        req = dict(file_path=str(tmp_path), total_bytes=333)
+        req = {'file_path': str(tmp_path), 'total_bytes': 333}
         res = threaded_server.recv_file(req, MagicMock())
         assert 'error' in res
         assert threaded_server.debug == bool(threaded_server.reqs_and_logs)
@@ -305,7 +307,7 @@ class TestTransferServiceApp:
         tst_fil = os_path_join(str(tmp_path), 'recv_file_tst.file')
         write_file(tst_fil, "any file content")
         with open(tst_fil, 'rb') as fp:
-            req = dict(file_path='recv_file_tst.file', total_bytes=os.fstat(fp.fileno()).st_size)
+            req = {'file_path': 'recv_file_tst.file', 'total_bytes': os.fstat(fp.fileno()).st_size}
             handler = MagicMock()
             handler.rfile = fp
             res = threaded_server.recv_file(req, handler)
@@ -314,28 +316,28 @@ class TestTransferServiceApp:
 
     def test_recv_message(self, threaded_server):
         msg = "message"
-        req = dict(message=msg)
+        req = {'message': msg}
         res = threaded_server.recv_message(req, MagicMock())
         assert 'transferred_bytes' in res
         assert res['transferred_bytes'] == len(msg)
         assert 'error' not in res
 
     def test_response_to_request_pending_requests(self, threaded_server):
-        req = dict(method_name='pending_requests')
+        req = {'method_name': 'pending_requests'}
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' not in res
 
     def test_response_to_request_recv_message(self, threaded_server):
         msg = "message"
-        req = dict(method_name='recv_message', message=msg)
+        req = {'method_name': 'recv_message', 'message': msg}
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' not in res
 
     def test_response_to_request_recv_message_completed(self, threaded_server):
         msg = "message"
-        req = dict(method_name='recv_message', message=msg, total_bytes=len(msg))
+        req = {'method_name': 'recv_message', 'message': msg, 'total_bytes': len(msg)}
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' not in res
@@ -346,15 +348,15 @@ class TestTransferServiceApp:
         assert 'error' in res
 
     def test_response_to_request_err_empty_res(self, threaded_server):
-        req = dict(method_name='patched_meth')
+        req = {'method_name': 'patched_meth'}
         setattr(threaded_server, 'patched_meth', lambda *_args, **_kwargs: {})
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' in res
 
     def test_response_to_request_err_in_req(self, threaded_server):
-        req = dict(method_name='patched_meth', error="req_error")
-        setattr(threaded_server, 'patched_meth', lambda *_args, **_kwargs: dict(something="xxx"))
+        req = {'method_name': 'patched_meth', 'error': "req_error"}
+        setattr(threaded_server, 'patched_meth', lambda *_args, **_kwargs: {'something': "xxx"})
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' in res
@@ -362,8 +364,8 @@ class TestTransferServiceApp:
         assert threaded_server.reqs_and_logs[-1]['error'] == "req_error"
 
     def test_response_to_request_err_in_res(self, threaded_server):
-        req = dict(method_name='patched_meth')
-        setattr(threaded_server, 'patched_meth', lambda *_args, **_kwargs: dict(error="res_error"))
+        req = {'method_name': 'patched_meth'}
+        setattr(threaded_server, 'patched_meth', lambda *_args, **_kwargs: {'error': "res_error"})
         res_lit = threaded_server.response_to_request(transfer_kwargs_literal(req), MagicMock())
         res = transfer_kwargs_from_literal(res_lit)
         assert 'error' in res
@@ -377,7 +379,7 @@ class TestTransferServiceApp:
         file_len = len(file_content)
         file_path = os_path_join(str(tmp_path), 'send_file.test')
         write_file_text(file_content, file_path)
-        req = dict(file_path=file_path, local_ip=os_local_ip(), remote_ip=os_local_ip(), total_bytes=file_len)
+        req = {'file_path': file_path, 'local_ip': os_local_ip(), 'remote_ip': os_local_ip(), 'total_bytes': file_len}
         res = threaded_server.send_file(req, MagicMock())
         assert 'transferred_bytes' in res
         assert res['transferred_bytes'] == file_len
@@ -390,7 +392,7 @@ class TestTransferServiceApp:
         write_file(file_path, "content of\nan already transferred file\n\n\n")
         with open(file_path, 'rb') as fp:
             file_len = os.fstat(fp.fileno()).st_size
-        req = dict(file_path=file_path, local_ip=os_local_ip(), remote_ip='localhost', total_bytes=file_len)
+        req = {'file_path': file_path, 'local_ip': os_local_ip(), 'remote_ip': 'localhost', 'total_bytes': file_len}
         res = threaded_server.send_file(req, MagicMock())
         assert 'transferred_bytes' in res
         assert res['transferred_bytes']
@@ -399,7 +401,7 @@ class TestTransferServiceApp:
 
     def test_send_file_not_existing(self, threaded_server):
         file_path = "zzz.y"
-        req = dict(file_path=file_path, local_ip=os_local_ip(), remote_ip='localhost', total_bytes=111)
+        req = {'file_path': file_path, 'local_ip': os_local_ip(), 'remote_ip': 'localhost', 'total_bytes': 111}
         res = threaded_server.send_file(req, MagicMock())
         assert 'transferred_bytes' not in res
         assert 'error' in res
@@ -407,7 +409,7 @@ class TestTransferServiceApp:
     def test_send_file_empty(self, threaded_server, tmp_path):
         file_path = os_path_join(str(tmp_path), 'test_send_file.zzz')
         write_file_text("", file_path)
-        req = dict(file_path=file_path, local_ip=os_local_ip(), remote_ip='localhost', total_bytes=0)
+        req = {'file_path': file_path, 'local_ip': os_local_ip(), 'remote_ip': 'localhost', 'total_bytes': 0}
         res = threaded_server.send_file(req, MagicMock())
         assert 'transferred_bytes' in res
         assert not res['transferred_bytes']
@@ -416,7 +418,7 @@ class TestTransferServiceApp:
 
     def test_send_message(self, threaded_server):
         msg = "message"
-        req = dict(message=msg, local_ip=os_local_ip(), remote_ip='localhost')  # os_local_ip())
+        req = {'message': msg, 'local_ip': os_local_ip(), 'remote_ip': 'localhost'}  # os_local_ip())
         res = threaded_server.send_message(req, MagicMock())
         assert 'transferred_bytes' in res
         assert res['transferred_bytes'] == len(msg)

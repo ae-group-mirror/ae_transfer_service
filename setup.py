@@ -25,13 +25,13 @@ setup_kwargs = {
     'license': 'GPL-3.0-or-later',
     'long_description': ('<!-- THIS FILE IS EXCLUSIVELY MAINTAINED by the project ae.ae v0.3.101 -->\n'
  '<!-- THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.namespace_root_tpls v0.3.22 -->\n'
- '# transfer_service 0.3.11\n'
+ '# transfer_service 0.3.12\n'
  '\n'
  '[![GitLab develop](https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/develop?logo=python)](\n'
  '    https://gitlab.com/ae-group/ae_transfer_service)\n'
  '[![LatestPyPIrelease](\n'
- '    https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/release0.3.11?logo=python)](\n'
- '    https://gitlab.com/ae-group/ae_transfer_service/-/tree/release0.3.11)\n'
+ '    https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/release0.3.12?logo=python)](\n'
+ '    https://gitlab.com/ae-group/ae_transfer_service/-/tree/release0.3.12)\n'
  '[![PyPIVersions](https://img.shields.io/pypi/v/ae_transfer_service)](\n'
  '    https://pypi.org/project/ae-transfer-service/#history)\n'
  '\n'
@@ -108,7 +108,7 @@ setup_kwargs = {
         'Source': 'https://ae.readthedocs.io/en/latest/_modules/ae/transfer_service.html'},
     'python_requires': '>=3.9',
     'url': 'https://gitlab.com/ae-group/ae_transfer_service',
-    'version': '0.3.11',
+    'version': '0.3.12',
     'zip_safe': True,
 }
 
