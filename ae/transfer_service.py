@@ -133,7 +133,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.12'
+__version__ = '0.3.13'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -221,7 +221,7 @@ def recv_bytes(sock: socket.socket, buf_len: int = SOCKET_BUF_LEN) -> bytes:
     """
     pre = "transfer_service.recv_bytes()"
     if not buf_len:
-        buf_len = server_app.get_opt('buf_len') if server_app else SOCKET_BUF_LEN
+        buf_len = server_app.get_option('buf_len') if server_app else SOCKET_BUF_LEN
     if server_app:
         server_app.vpo(f"{pre}: sock={sock} buf_len={buf_len} ... waiting for receive")
     buf = b""
@@ -506,7 +506,7 @@ class TransferServiceApp(ConsoleApp):
 
         errors: list[str] = []
         copy_bytes(handler.rfile, recv_file, total_bytes=file_length, transferred_bytes=start_offset,
-                   buf_size=self.get_opt('buf_len'), recoverable=True, errors=errors, progress_func=_progress)
+                   buf_size=self.get_option('buf_len'), recoverable=True, errors=errors, progress_func=_progress)
         if errors:
             transfer_kwargs_update(request_kwargs, response_kwargs, error="\n".join(errors))
 
@@ -615,7 +615,7 @@ class TransferServiceApp(ConsoleApp):
                 content = content[offset:]
 
             # instead of sock.sendall(content) send in chunks to allow progress display
-            buf_len = self.get_opt('buf_len')
+            buf_len = self.get_option('buf_len')
             while offset < count and 'error' not in request_kwargs:
                 chunk = content[:buf_len]
                 sock.send(chunk)
@@ -673,7 +673,7 @@ class TransferServiceApp(ConsoleApp):
 
         err_msg = ""
         try:
-            server_address = (self.get_opt('bind'), self.get_opt('port'))
+            server_address = (self.get_option('bind'), self.get_option('port'))
             ThreadingTCPServer.allow_reuse_address = True   # patching class: https://stackoverflow.com/a/15278302/90580
             # noinspection PyTypeChecker
             self.server_instance = ThreadingTCPServer(server_address, ThreadedTCPRequestHandler)
