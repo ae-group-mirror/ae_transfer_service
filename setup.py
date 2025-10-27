@@ -1,4 +1,4 @@
-# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.project_tpls v0.3.58
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.project_tpls v0.3.59
 """ setup of ae namespace module portion transfer_service: transfer client and server services. """
 # noinspection PyUnresolvedReferences
 import sys
@@ -25,13 +25,13 @@ setup_kwargs = {
     'license': 'GPL-3.0-or-later',
     'long_description': ('<!-- THIS FILE IS EXCLUSIVELY MAINTAINED by the project ae.ae v0.3.101 -->\n'
  '<!-- THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.namespace_root_tpls v0.3.22 -->\n'
- '# transfer_service 0.3.12\n'
+ '# transfer_service 0.3.13\n'
  '\n'
  '[![GitLab develop](https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/develop?logo=python)](\n'
  '    https://gitlab.com/ae-group/ae_transfer_service)\n'
  '[![LatestPyPIrelease](\n'
- '    https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/release0.3.12?logo=python)](\n'
- '    https://gitlab.com/ae-group/ae_transfer_service/-/tree/release0.3.12)\n'
+ '    https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/release0.3.13?logo=python)](\n'
+ '    https://gitlab.com/ae-group/ae_transfer_service/-/tree/release0.3.13)\n'
  '[![PyPIVersions](https://img.shields.io/pypi/v/ae_transfer_service)](\n'
  '    https://pypi.org/project/ae-transfer-service/#history)\n'
  '\n'
@@ -108,7 +108,7 @@ setup_kwargs = {
         'Source': 'https://ae.readthedocs.io/en/latest/_modules/ae/transfer_service.html'},
     'python_requires': '>=3.9',
     'url': 'https://gitlab.com/ae-group/ae_transfer_service',
-    'version': '0.3.12',
+    'version': '0.3.13',
     'zip_safe': True,
 }
 
