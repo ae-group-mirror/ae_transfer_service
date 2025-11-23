@@ -133,7 +133,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.13'
+__version__ = '0.3.14'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -646,14 +646,16 @@ class TransferServiceApp(ConsoleApp):
 
         return response_kwargs
 
-    def shutdown(self, exit_code: Optional[int] = 0, timeout: Optional[float] = None):
+    def shutdown(self, exit_code: Optional[int] = 0, error_message: str = "", timeout: Optional[float] = None
+                 ):  # pragma: no cover
         """ overwritten to stop a running transfer service server/threads on shutdown of this app instance.
 
-        :param exit_code:   set application OS exit code - see :meth:`~ae.core.AppBase.shutdown`.
-        :param timeout:     timeout float value in seconds - see :meth:`~ae.core.AppBase.shutdown`.
+        :param exit_code:       set application OS exit code - see :meth:`~ae.core.AppBase.shutdown`.
+        :param error_message:   optional shutdown error message.
+        :param timeout:         timeout float value in seconds - see :meth:`~ae.core.AppBase.shutdown`.
         """
         self.stop_server()
-        super().shutdown(exit_code=exit_code, timeout=timeout)
+        super().shutdown(exit_code=exit_code, error_message=error_message, timeout=timeout)
 
     def start_server(self, threaded: bool = False) -> str:
         """ start server and run until main app :meth:`~.stop_server`.
