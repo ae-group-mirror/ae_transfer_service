@@ -133,7 +133,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.14'
+__version__ = '0.3.15'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -234,7 +234,7 @@ def recv_bytes(sock: socket.socket, buf_len: int = SOCKET_BUF_LEN) -> bytes:
             if server_app:
                 server_app.vpo(f"{pre}: received end-of-line-char from socket {sock}")
             break
-        if not chunk:   # pragma: no cover
+        if not chunk:
             if server_app:
                 server_app.vpo(f"{pre}: received empty chunk from socket {sock}")
             buf = bytes(transfer_kwargs_literal({'error': f"{pre}: empty chunk error"}), **ENCODING_KWARGS)

@@ -5,15 +5,16 @@ import pytest
 import threading
 
 from socket import socket
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from ae.base import os_local_ip, os_path_isfile, os_path_join, write_file
-from ae.console import ConsoleApp
 from ae.files import read_file_text, write_file_text
 from ae.paths import PATH_PLACEHOLDERS
+from ae.console import ConsoleApp
 
+import ae.transfer_service
 from ae.transfer_service import (
-    ENCODING_KWARGS, SERVER_PORT, TRANSFER_KWARGS_LINE_END_BYTE, TRANSFER_KWARGS_LINE_END_CHAR,
+    ENCODING_KWARGS, SERVER_PORT, SOCKET_BUF_LEN, TRANSFER_KWARGS_LINE_END_BYTE, TRANSFER_KWARGS_LINE_END_CHAR,
     ThreadedTCPRequestHandler, TransferServiceApp,
     clean_log_str, connect_and_request,
     recv_bytes, service_factory, transfer_kwargs_error, transfer_kwargs_from_literal, transfer_kwargs_literal,
@@ -71,7 +72,9 @@ class TestHelpers:
         with socket() as sock:
             sock.connect(('localhost', SERVER_PORT))
             sock.sendall(bytes(transfer_kwargs_literal({'method_name': 'pending_requests'}), **ENCODING_KWARGS))
+
             res = recv_bytes(sock)
+
             assert res[-1:] == TRANSFER_KWARGS_LINE_END_BYTE
             res = str(res, **ENCODING_KWARGS)
             assert res[-1:] == TRANSFER_KWARGS_LINE_END_CHAR
@@ -80,6 +83,19 @@ class TestHelpers:
             res = transfer_kwargs_from_literal(res)
             assert 'pending_requests' in res
             assert threaded_server.debug == bool(res['pending_requests'])
+
+    def test_recv_bytes_empty_chunk_err(self):
+        recv = MagicMock(return_value=b"")
+        sock = MagicMock(recv=recv)
+        app = MagicMock()
+        app.vpo = MagicMock()
+        with patch('ae.transfer_service.server_app', app):
+            res = recv_bytes(sock)
+
+            assert b'empty chunk' in res
+
+            recv.assert_called_once_with(SOCKET_BUF_LEN)
+            app.vpo.assert_called()
 
     def test_service_factory(self, restore_app_env):
         app = service_factory()

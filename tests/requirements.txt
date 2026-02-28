@@ -1,12 +1,10 @@
-# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.project_tpls v0.3.68
+# THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.project_tpls v0.3.76
 anybadge
-coverage-badge
-aedev_project_manager  # including Pillow to test/check integrity and img/loc/snd resources
 flake8
 mypy
 pylint
 pytest
-pytest-cov
+pytest-cov                  # includes coverage package
 pytest-django
 typing
 types-setuptools            # for mypy
