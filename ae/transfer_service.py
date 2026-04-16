@@ -133,7 +133,7 @@ from ae.deep import deep_replace                                                
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.15'
+__version__ = '0.3.16'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -508,7 +508,7 @@ class TransferServiceApp(ConsoleApp):
         copy_bytes(handler.rfile, recv_file, total_bytes=file_length, transferred_bytes=start_offset,
                    buf_size=self.get_option('buf_len'), recoverable=True, errors=errors, progress_func=_progress)
         if errors:
-            transfer_kwargs_update(request_kwargs, response_kwargs, error="\n".join(errors))
+            transfer_kwargs_update(request_kwargs, response_kwargs, error=os.linesep.join(errors))
 
         return response_kwargs
 
