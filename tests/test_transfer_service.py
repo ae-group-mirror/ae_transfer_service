@@ -7,7 +7,8 @@ import threading
 from socket import socket
 from unittest.mock import MagicMock, patch
 
-from ae.base import os_local_ip, os_path_isfile, os_path_join, write_file
+from ae.base import os_path_isfile, os_path_join, write_file
+from ae.system import os_local_ip
 from ae.files import read_file_text, write_file_text
 from ae.paths import PATH_PLACEHOLDERS
 from ae.console import ConsoleApp

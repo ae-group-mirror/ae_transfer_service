@@ -50,6 +50,7 @@ setup_kwargs = {
     },
     'install_requires': [
         'ae_base',
+        'ae_system',
         'ae_deep',
         'ae_files',
         'ae_paths',
@@ -79,7 +80,7 @@ setup_kwargs = {
     },
     'python_requires': '>=3.12',
     'url': 'https://gitlab.com/ae-group/ae_transfer_service',
-    'version': '0.3.16',
+    'version': '0.3.17',
     'zip_safe': True,
 }
 
