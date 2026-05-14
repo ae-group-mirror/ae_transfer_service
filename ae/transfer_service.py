@@ -126,14 +126,15 @@ from socketserver import StreamRequestHandler, ThreadingTCPServer
 from typing import Any, Callable, Optional, Union
 
 from ae.base import (                                                                                   # type: ignore
-    DATE_TIME_ISO, UNSET, norm_path, os_local_ip, os_path_isdir, os_path_isfile, os_path_join)
+    DATE_TIME_ISO, UNSET, norm_path, os_path_isdir, os_path_isfile, os_path_join)
+from ae.system import os_local_ip                                                                       # type: ignore
 from ae.files import copy_bytes                                                                         # type: ignore
 from ae.paths import PATH_PLACEHOLDERS, normalize, placeholder_path, series_file_name                   # type: ignore
 from ae.deep import deep_replace                                                                        # type: ignore
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.16'
+__version__ = '0.3.17'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
