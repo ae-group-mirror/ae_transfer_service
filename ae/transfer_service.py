@@ -80,9 +80,11 @@ send file to another transfer service server
 to send files from one transfer server to another running transfer server, a separate client process has to be
 started on the device storing the file to be sent.
 
-to initiate the file transfer the client process has to make a tcp connection to the transfer server running on the
-same device, specifying the path of the file to send and the remote ip of the receiving transfer server and finally call
-the remote procedure `send_file` like shown in the following example::
+to initiate the file transfer the client process has to call the :func:`connect_and_request` function in order
+to establish a tcp connection to the transfer server running on the same device. in this call specify the remote
+method name, the path of the file to send and the remote ip of the receiving transfer server.
+:func:`connect_and_request` will then call the specified remote method/procedure (`send_file` in
+the following example)::
 
     import socket
     from ae.transfer_service import connect_and_request
@@ -115,26 +117,29 @@ the following remote procedures are provided by the transfer service server:
     the demo app `ComPartY <https://gitlab.com/ae-group/comparty>`_ is using all provided remote procedures.
 
 """
+from __future__ import annotations  # allow type forward references (PEP 563), can be removed in Python 3.14+ (PEP 749)
+
 import ast
 import datetime
 import os
 import socket
 import threading
 
+from collections.abc import Callable
 from copy import deepcopy
 from socketserver import StreamRequestHandler, ThreadingTCPServer
-from typing import Any, Callable, Optional, Union
+from typing import Any
 
 from ae.base import (                                                                                   # type: ignore
     DATE_TIME_ISO, UNSET, norm_path, os_path_isdir, os_path_isfile, os_path_join)
 from ae.system import os_local_ip                                                                       # type: ignore
+from ae.deep import deep_replace                                                                        # type: ignore
 from ae.files import copy_bytes                                                                         # type: ignore
 from ae.paths import PATH_PLACEHOLDERS, normalize, placeholder_path, series_file_name                   # type: ignore
-from ae.deep import deep_replace                                                                        # type: ignore
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.17'
+__version__ = '0.3.18'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -159,30 +164,31 @@ TRANSFER_KWARGS_LINE_END_BYTE = bytes(TRANSFER_KWARGS_LINE_END_CHAR, **ENCODING_
 # InetAddress = tuple[str, int]     #: for socket.connect / server.bind
 TransferKwargs = dict[str, Any]     #: command/action format of requests and responses
 
-
 requests_lock = threading.Lock()    #: locking requests TransferKwargs in :attr:`TransferServiceApp.reqs_and_logs`
 
-server_app: Optional['TransferServiceApp'] = None     #: transfer service server app
+# pylint: disable=invalid-name
+server_app: TransferServiceApp | None = None            #: transfer service server app; set via :func:`service_factory`
 
 
-def clean_log_str(log_str: Union[str, bytes]) -> str:
-    """ remove high-commas and backslashes from the passed string to add it to the logs (preventing \\ duplicates).
+def clean_log_str(log_str: str | bytes) -> str:
+    """ remove CRs, LFs, high-commas and backslashes from the passed message in order to add it cleanly to the logs.
 
     :param log_str:             log string or bytes array to clean up.
     :return:                    cleaned log string.
     """
     if isinstance(log_str, bytes):
         log_str = str(log_str, **ENCODING_KWARGS)
-    log_str = log_str.replace("\\n", "")
-    log_str = log_str.replace("\n", "")
-    log_str = log_str.replace("\r", "")
-    log_str = log_str.replace("\\", "")
-    log_str = log_str.replace("'", "")
-    return log_str.replace('"', "")
+    return (log_str
+            .replace("\\n", "").replace("\n", "")
+            .replace("\\r", "").replace("\r", "")
+            .replace("\\", "")
+            .replace("'", "")
+            .replace('"', "")
+            )
 
 
 def connect_and_request(sock: socket.socket, request_kwargs: TransferKwargs,
-                        buf_len: int = SOCKET_BUF_LEN, timeout: Optional[float] = CONNECTION_TIMEOUT) -> TransferKwargs:
+                        buf_len: int = SOCKET_BUF_LEN, timeout: float | None = CONNECTION_TIMEOUT) -> TransferKwargs:
     """ connect to remote, send first command/action and return response as transfer kwargs dict.
 
     :param sock:                new socket instance.
@@ -224,26 +230,30 @@ def recv_bytes(sock: socket.socket, buf_len: int = SOCKET_BUF_LEN) -> bytes:
     if not buf_len:
         buf_len = server_app.get_option('buf_len') if server_app else SOCKET_BUF_LEN
     if server_app:
+        # noinspection PyStringConversionWithoutDunderMethod
         server_app.vpo(f"{pre}: sock={sock} buf_len={buf_len} ... waiting for receive")
     buf = b""
     while True:
         chunk = sock.recv(buf_len)
         if server_app:
+            # noinspection PyStringConversionWithoutDunderMethod
             server_app.vpo(f"{pre}: received {len(chunk)} bytes chunk=({clean_log_str(chunk)}); sock={sock}")
         buf += chunk
         if buf[-1:] == TRANSFER_KWARGS_LINE_END_BYTE:
             if server_app:
+                # noinspection PyStringConversionWithoutDunderMethod
                 server_app.vpo(f"{pre}: received end-of-line-char from socket {sock}")
             break
         if not chunk:
             if server_app:
+                # noinspection PyStringConversionWithoutDunderMethod
                 server_app.vpo(f"{pre}: received empty chunk from socket {sock}")
             buf = bytes(transfer_kwargs_literal({'error': f"{pre}: empty chunk error"}), **ENCODING_KWARGS)
             break
     return buf
 
 
-def service_factory(task_id_func: Optional[Callable[[str, str, str], str]] = None) -> 'TransferServiceApp':
+def service_factory(task_id_func: Callable[[str, str, str], str] | None = None) -> TransferServiceApp:
     """ create server app instance including the command line options `bind` and `port`.
 
     :param task_id_func:        callable to return a unique id for a transfer request task.
@@ -251,16 +261,17 @@ def service_factory(task_id_func: Optional[Callable[[str, str, str], str]] = Non
     """
     global server_app           # pylint: disable=global-statement #: singleton server instance
 
-    server_app = TransferServiceApp(app_name='transfer_service', multi_threading=True, disable_buffering=True)
-    server_app.add_option('bind', "server bind address", SERVER_BIND, short_opt='b')
-    server_app.add_option('port', "server listening port", SERVER_PORT, short_opt='p')
-    server_app.add_option('buf_len', "socket buffer length", SOCKET_BUF_LEN, short_opt='l')
+    app = TransferServiceApp(app_name='transfer_service', multi_threading=True, disable_buffering=True)
+    server_app = app
+
+    app.add_option('bind', "server bind address", SERVER_BIND, short_opt='b')
+    app.add_option('port', "server listening port", SERVER_PORT, short_opt='p')
+    app.add_option('buf_len', "socket buffer length", SOCKET_BUF_LEN, short_opt='l')
 
     if task_id_func:
-        # noinspection PyTypeHints
-        server_app.id_of_task = task_id_func    # type: ignore
+        app.id_of_task = task_id_func    # type: ignore
 
-    return server_app
+    return app
 
 
 def transfer_kwargs_error(transfer_kwargs: TransferKwargs, err_msg: str):
@@ -337,6 +348,7 @@ class ThreadedTCPRequestHandler(StreamRequestHandler):
     def handle(self):
         """ handle a single request """
         pre = "ThreadedTCPRequestHandler.handle() "
+        assert server_app, "server app has to be initialized via ae.transfer_service.service_factory()"
         try:
             request_lit = str(self.rfile.readline(), **ENCODING_KWARGS)[:-1]
             server_app.vpo(f"{pre}request len={len(request_lit)}; req={clean_log_str(request_lit)}")
@@ -350,8 +362,8 @@ class ThreadedTCPRequestHandler(StreamRequestHandler):
 class TransferServiceApp(ConsoleApp):
     """ server service app class """
     reqs_and_logs: list[TransferKwargs]                 #: list of transfer_kwargs of currently processed requests
-    server_instance: Optional[ThreadingTCPServer]       #: server class instance
-    server_thread: Optional[threading.Thread]           #: server thread (main or separate thread)
+    server_instance: ThreadingTCPServer | None          #: server class instance
+    server_thread: threading.Thread | None              #: server thread (main or separate thread)
 
     def cancel_request(self, request_kwargs: TransferKwargs, handler: StreamRequestHandler) -> TransferKwargs:
         """ cancel running request.
@@ -647,7 +659,7 @@ class TransferServiceApp(ConsoleApp):
 
         return response_kwargs
 
-    def shutdown(self, exit_code: Optional[int] = 0, error_message: str = "", timeout: Optional[float] = None
+    def shutdown(self, exit_code: int | None = 0, error_message: str = "", timeout: float | None = None
                  ):  # pragma: no cover
         """ overwritten to stop a running transfer service server/threads on shutdown of this app instance.
 
@@ -679,20 +691,22 @@ class TransferServiceApp(ConsoleApp):
             server_address = (self.get_option('bind'), self.get_option('port'))
             ThreadingTCPServer.allow_reuse_address = True   # patching class: https://stackoverflow.com/a/15278302/90580
             # noinspection PyTypeChecker
-            self.server_instance = ThreadingTCPServer(server_address, ThreadedTCPRequestHandler)
+            instance = ThreadingTCPServer(server_address, ThreadedTCPRequestHandler)
+            self.server_instance = instance
 
-            self.log('verbose', f"{pre}: (ip,port)={server_address}/{self.server_instance.server_address}")
+            self.log('verbose', f"{pre}: (ip,port)={server_address}/{instance.server_address}")
 
-            tct = threading.current_thread()
+            old_thread = threading.current_thread()
             if threaded:
                 # start a thread with the server -- that thread will then start one more thread for each request
-                self.server_thread = threading.Thread(name="TransferThread", target=self.server_instance.serve_forever)
-                self.server_thread.start()
-                self.log('verbose', f"{pre}: server started from thread={tct.name} in thread={self.server_thread.name}")
+                new_thread = threading.Thread(name="TransferThread", target=instance.serve_forever)
+                self.server_thread = new_thread
+                new_thread.start()
+                self.log('verbose', f"{pre}: server started from thread={old_thread.name} in thread={new_thread.name}")
             else:
-                self.log('verbose', f"{pre}: starting server loop - using current thread={tct.name}")
-                self.server_thread = tct
-                self.server_instance.serve_forever()
+                self.log('verbose', f"{pre}: starting server loop - using current thread={old_thread.name}")
+                self.server_thread = old_thread
+                instance.serve_forever()
 
         except (IOError, OSError, Exception) as ex:     # pylint: disable=broad-exception-caught
             err_msg = f"{pre}: exception {ex}"
@@ -709,7 +723,7 @@ class TransferServiceApp(ConsoleApp):
             requests_lock.release()
             self.log('print', f"{pre}: released requests lock")
 
-        if getattr(self, 'server_instance', False) and getattr(self, 'server_thread', False):
+        if self.server_instance and self.server_thread:
             if threading.current_thread() == self.server_thread:    # pragma: no cover
                 thread = threading.Thread(name="StopTransferService", target=self.server_instance.shutdown)
                 thread.start()
@@ -721,11 +735,5 @@ class TransferServiceApp(ConsoleApp):
                 self.server_thread.join(timeout=SHUTDOWN_TIMEOUT)
                 if self.server_thread.is_alive():   # pragma: no cover
                     self.log('print', f"{pre}: server thread join timed out")
+
         self.server_instance = self.server_thread = None
-
-
-if __name__ == '__main__':      # pragma: no cover
-    # create app instance, parse command line args and start server
-    server_app = service_factory()
-    server_app.run_app()
-    server_app.start_server()
