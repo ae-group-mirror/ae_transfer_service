@@ -80,7 +80,7 @@ setup_kwargs = {
     },
     'python_requires': '>=3.12',
     'url': 'https://gitlab.com/ae-group/ae_transfer_service',
-    'version': '0.3.18',
+    'version': '0.3.19',
     'zip_safe': True,
 }
 

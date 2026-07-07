@@ -451,7 +451,7 @@ class TestTransferServiceApp:
         thread = threading.Thread(target=app.start_server)
         thread.start()
         retries = 69
-        while retries > 0 and not app.server_instance and not app.server_thread:
+        while retries > 0 and (not app.server_instance or not app.server_thread):
             time.sleep(.1)
             retries -= 1
         app.stop_server()

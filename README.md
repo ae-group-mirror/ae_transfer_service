@@ -1,12 +1,12 @@
 <!-- THIS FILE IS EXCLUSIVELY MAINTAINED by the project ae.ae v0.3.104 -->
 <!-- THIS FILE IS EXCLUSIVELY MAINTAINED by the project aedev.namespace_root_tpls v0.3.31 -->
-# transfer_service 0.3.18
+# transfer_service 0.3.19
 
 [![GitLab develop](https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/develop?logo=python)](
     https://gitlab.com/ae-group/ae_transfer_service)
 [![LatestPyPIrelease](
-    https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/release0.3.18?logo=python)](
-    https://gitlab.com/ae-group/ae_transfer_service/-/tree/release0.3.18)
+    https://img.shields.io/gitlab/pipeline/ae-group/ae_transfer_service/release0.3.19?logo=python)](
+    https://gitlab.com/ae-group/ae_transfer_service/-/tree/release0.3.19)
 [![PyPIVersions](https://img.shields.io/pypi/v/ae_transfer_service)](
     https://pypi.org/project/ae-transfer-service/#history)
 

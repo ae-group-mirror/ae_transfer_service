@@ -139,7 +139,7 @@ from ae.paths import PATH_PLACEHOLDERS, normalize, placeholder_path, series_file
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.18'
+__version__ = '0.3.19'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
