@@ -1,6 +1,8 @@
 """ transfer service unit tests. """
 import datetime
 import os
+import time
+
 import pytest
 import threading
 
@@ -13,7 +15,7 @@ from ae.files import read_file_text, write_file_text
 from ae.paths import PATH_PLACEHOLDERS
 from ae.console import ConsoleApp
 
-import ae.transfer_service
+
 from ae.transfer_service import (
     ENCODING_KWARGS, SERVER_PORT, SOCKET_BUF_LEN, TRANSFER_KWARGS_LINE_END_BYTE, TRANSFER_KWARGS_LINE_END_CHAR,
     ThreadedTCPRequestHandler, TransferServiceApp,
@@ -40,6 +42,7 @@ class TestHelpers:
         assert clean_log_str("log_str\n") == "log_str"
         assert clean_log_str("log_str\r") == "log_str"
         assert clean_log_str("log_str\\n") == "log_str"
+        assert clean_log_str("log_str\\r") == "log_str"
         assert clean_log_str("log_str\\") == "log_str"
         assert clean_log_str("'log_str'") == "log_str"
 
@@ -48,6 +51,7 @@ class TestHelpers:
         assert clean_log_str(b"log_str\n") == "log_str"
         assert clean_log_str(b"log_str\r") == "log_str"
         assert clean_log_str(b"log_str\\n") == "log_str"
+        assert clean_log_str(b"log_str\\r") == "log_str"
         assert clean_log_str(b"log_str\\") == "log_str"
         assert clean_log_str(b"'log_str'") == "log_str"
 
@@ -446,13 +450,22 @@ class TestTransferServiceApp:
         app = service_factory()
         thread = threading.Thread(target=app.start_server)
         thread.start()
-        while not getattr(app, 'server_instance', False) and not getattr(app, 'server_thread', False):
-            pass
+        retries = 69
+        while retries > 0 and not app.server_instance and not app.server_thread:
+            time.sleep(.1)
+            retries -= 1
         app.stop_server()
+        assert retries > 0
 
     def test_start_server_exception(self, restore_app_env):
+        invalid_addr = ":invalid bind address:"
+        invalid_port = ":invalid port:"
         app = service_factory()
         app.run_app()
-        app.set_option('bind', ":invalid bind address:", save_to_config=False)
-        app.set_option('port', ":invalid port:", save_to_config=False)
-        assert app.start_server(threaded=True)
+        app.set_option('bind', invalid_addr, save_to_config=False)
+        app.set_option('port', invalid_port, save_to_config=False)
+
+        err = app.start_server(threaded=True)
+
+        assert invalid_addr in err or invalid_port in err
+        app.stop_server()
