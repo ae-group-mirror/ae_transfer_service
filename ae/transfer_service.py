@@ -114,8 +114,7 @@ the following remote procedures are provided by the transfer service server:
 * `send_message`: send text message to other transfer service server.
 
 .. hint::
-    the demo app `ComPartY <https://gitlab.com/ae-group/comparty>`_ is using all provided remote procedures.
-
+    the `ComPartY demo app <https://gitlab.com/ae-group/comparty>`_ is using all provided remote procedures.
 """
 from __future__ import annotations  # allow type forward references (PEP 563), can be removed in Python 3.14+ (PEP 749)
 
@@ -128,7 +127,7 @@ import threading
 from collections.abc import Callable
 from copy import deepcopy
 from socketserver import StreamRequestHandler, ThreadingTCPServer
-from typing import Any
+from typing import cast, Any
 
 from ae.base import (                                                                                   # type: ignore
     DATE_TIME_ISO, UNSET, norm_path, os_path_isdir, os_path_isfile, os_path_join)
@@ -139,7 +138,7 @@ from ae.paths import PATH_PLACEHOLDERS, normalize, placeholder_path, series_file
 from ae.console import ConsoleApp                                                                       # type: ignore
 
 
-__version__ = '0.3.19'
+__version__ = '0.3.20'
 
 
 CONNECTION_TIMEOUT = 2.7            #: default timeout (in seconds) to connect and request a server process
@@ -212,8 +211,8 @@ def connect_and_request(sock: socket.socket, request_kwargs: TransferKwargs,
         sock.sendall(bytes(transfer_kwargs_literal(request_kwargs), **ENCODING_KWARGS))
         response_lit = str(recv_bytes(sock, buf_len=buf_len), **ENCODING_KWARGS)[:-1]
         return transfer_kwargs_from_literal(response_lit)
-    # pylint: disable=broad-exception-caught
-    except (Exception, IOError, OSError, SyntaxError, ValueError) as ex:
+
+    except (IOError, OSError, SyntaxError, ValueError, Exception) as ex:        # pylint: disable=broad-exception-caught
         request_kwargs['error'] = CONNECT_ERR_PREFIX + f"{ex} processing received request {request_kwargs}"
         return request_kwargs
 
@@ -362,7 +361,7 @@ class ThreadedTCPRequestHandler(StreamRequestHandler):
 class TransferServiceApp(ConsoleApp):
     """ server service app class """
     reqs_and_logs: list[TransferKwargs]                 #: list of transfer_kwargs of currently processed requests
-    server_instance: ThreadingTCPServer | None          #: server class instance
+    server_instance: ThreadingTCPServer | None          #: server class instance (created by :meth:`.start_server`)
     server_thread: threading.Thread | None              #: server thread (main or separate thread)
 
     def cancel_request(self, request_kwargs: TransferKwargs, handler: StreamRequestHandler) -> TransferKwargs:
@@ -404,18 +403,18 @@ class TransferServiceApp(ConsoleApp):
     def log(self, log_level: str, message: str):
         """ print log message and add it to reqs_and_logs (to be read by controller app).
 
-        .. note::
-            please note that you have to use :func:`print` or one of the console print methods of the :class:`AppBase`
-            (like e.g. :meth:`~AppBase.verbose_out`, respective self.vpo) instead of this method for the logging of
-            low level transport methods/functions (like e.g. :meth:`~TransferServiceApp.pending_requests`,
-            :meth:`~TransferServiceApp.response_to_request`, :meth:`~ThreadedTCPRequestHandler.handle` or
-            :func:`recv_bytes`). this will prevent the duplication of a log message, because each call of this method
-            creates a new entry in :attr:`~TransferServiceApp.reqs_and_logs` which will be sent to the controlling app
-            via the low level transport methods (which would recursively grow the messages sent until the system
-            freezes), especially if the transfer kwargs are included into the log message.
-
         :param log_level:       'print' always prints, 'debug' prints if self.debug, 'verbose' prints if self.verbose.
         :param message:         message to print.
+
+        .. note::
+            to log low level transport methods/functions (like e.g. :meth:`~TransferServiceApp.pending_requests`,
+            :meth:`~TransferServiceApp.response_to_request`, :meth:`~ThreadedTCPRequestHandler.handle` or
+            :func:`recv_bytes`), use :func:`print` or one of the console print methods of the :class:`AppBase`
+            (like e.g. :meth:`~AppBase.verbose_out`, respective self.vpo) instead of this method. this prevents the
+            duplication of a log message, because each call of this method creates a new entry in
+            :attr:`~TransferServiceApp.reqs_and_logs`, which will be sent to the controlling app
+            via the low level transport methods (which would recursively grow the messages sent until the system
+            freezes), especially if the transfer kwargs are included into the log message.
         """
         out_method = getattr(self, log_level + '_out', None)    # calling print() via self.po/.dpo/.vpo()
         if callable(out_method):
@@ -512,7 +511,7 @@ class TransferServiceApp(ConsoleApp):
             :return:            error message string if error (from other thread) detected, else empty string.
             """
             self.vpo(f"{pre}._progress(): copy bytes progress kwargs={kwargs}")
-            if 'error' in request_kwargs:   # pragma: no cover
+            if 'error' in request_kwargs:
                 return f"{pre}._progress(): error in request kwargs={request_kwargs}"   # cancel transfer
             transfer_kwargs_update(request_kwargs, response_kwargs, **kwargs)
             return ""
@@ -576,8 +575,7 @@ class TransferServiceApp(ConsoleApp):
                             request_kwargs['transferred_bytes'] = transferred
                             request_kwargs['completed'] = True
 
-            # pylint: disable=broad-exception-caught
-            except (KeyError, IOError, OSError, SyntaxError, ValueError, Exception) as ex:
+            except (KeyError, IOError, OSError, ValueError, Exception) as ex:   # pylint: disable=broad-exception-caught
                 self.log('print', f"{pre} {method_name} exception {ex}; req={request_kwargs}; res={response_kwargs}")
                 if not response_kwargs:
                     response_kwargs = request_kwargs.copy()
@@ -623,7 +621,7 @@ class TransferServiceApp(ConsoleApp):
 
             with requests_lock:  # .acquire()/.release()
                 offset = request_kwargs['transferred_bytes'] = response_kwargs['transferred_bytes']
-            if offset:      # pragma: no cover
+            if offset:
                 self.log('debug', f"{pre} recovering interrupted transfer at offset {offset}")
                 content = content[offset:]
 
@@ -659,8 +657,7 @@ class TransferServiceApp(ConsoleApp):
 
         return response_kwargs
 
-    def shutdown(self, exit_code: int | None = 0, error_message: str = "", timeout: float | None = None
-                 ):  # pragma: no cover
+    def shutdown(self, exit_code: int | None = 0, error_message: str = "", timeout: float | None = None):
         """ overwritten to stop a running transfer service server/threads on shutdown of this app instance.
 
         :param exit_code:       set application OS exit code - see :meth:`~ae.core.AppBase.shutdown`.
@@ -680,7 +677,7 @@ class TransferServiceApp(ConsoleApp):
         self.reqs_and_logs = []
         self.server_instance = self.server_thread = None
 
-        if requests_lock.locked():      # pragma: no cover
+        if requests_lock.locked():
             requests_lock.release()     # reset from crashed request
             self.log('print', f"{pre}: released requests lock")
 
@@ -719,21 +716,25 @@ class TransferServiceApp(ConsoleApp):
         """ stop/pause transfer service server - callable also if not running to reset/prepare this app instance. """
         pre = "TransferServiceApp.stop_server"
 
-        if requests_lock.locked():      # pragma: no cover
+        if requests_lock.locked():
             requests_lock.release()
             self.log('print', f"{pre}: released requests lock")
 
-        if self.server_instance and self.server_thread:
-            if threading.current_thread() == self.server_thread:    # pragma: no cover
-                thread = threading.Thread(name="StopTransferService", target=self.server_instance.shutdown)
+        if getattr(self, 'server_instance', False) and getattr(self, 'server_thread', False):   # no start_server()-call
+            srv_instance = cast(ThreadingTCPServer, self.server_instance)
+            srv_thread = cast(threading.Thread, self.server_thread)
+            if threading.current_thread() == srv_thread:
+                thread = threading.Thread(name="StopTransferService", target=srv_instance.shutdown)
                 thread.start()
                 thread.join(timeout=SHUTDOWN_TIMEOUT)
                 if thread.is_alive():
                     self.log('print', f"{pre}: server shutdown thread join timed out")
             else:
-                self.server_instance.shutdown()
-                self.server_thread.join(timeout=SHUTDOWN_TIMEOUT)
-                if self.server_thread.is_alive():   # pragma: no cover
+                srv_instance.shutdown()
+                srv_thread.join(timeout=SHUTDOWN_TIMEOUT)
+                if srv_thread.is_alive():
                     self.log('print', f"{pre}: server thread join timed out")
+
+            srv_instance.server_close()     # close socket and release port
 
         self.server_instance = self.server_thread = None
