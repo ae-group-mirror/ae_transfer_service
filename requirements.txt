@@ -4,5 +4,6 @@ ae_system
 ae_deep
 ae_files
 ae_paths
+ae_core
 ae_console
 
